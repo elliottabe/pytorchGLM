@@ -145,6 +145,9 @@ def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, h
         else:
             # if the worldcam has already been resized when the nc file was written in preprocessing, don't resize
             world_vid = world_vid_raw.copy()
+        del world_vid_raw
+        gc.collect()
+
         # world timestamps
         worldT = world_data.timestamps.copy()
         # plot worldcam timing
@@ -158,20 +161,20 @@ def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, h
         plt.imshow(np.mean(world_vid,axis=0)); plt.title('mean world image')
         diagnostic_pdf.savefig()
         plt.close()
-        if free_move is True:
-            print('opening top data')
-            # open the topdown camera nc file
-            top_data = xr.open_dataset(file_dict['top'])
-            # get the speed of the base of the animal's tail in the topdown tracking
-            # most points don't track well enough for this to be done with other parts of animal (e.g. head points)
-            topx = top_data.TOP1_pts.sel(point_loc='tailbase_x').values; topy = top_data.TOP1_pts.sel(point_loc='tailbase_y').values
-            topdX = np.diff(topx); topdY = np.diff(topy)
-            top_speed = np.sqrt(topdX**2, topdY**2) # speed of tailbase in topdown camera
-            topT = top_data.timestamps.copy() # read in time timestamps
-            top_vid = np.uint8(top_data['TOP1_video']) # read in top video
-            # clear from memory
-            del top_data
-            gc.collect()
+        # if free_move == True:
+        #     print('opening top data')
+        #     # open the topdown camera nc file
+        #     top_data = xr.open_dataset(file_dict['top'])
+        #     # get the speed of the base of the animal's tail in the topdown tracking
+        #     # most points don't track well enough for this to be done with other parts of animal (e.g. head points)
+        #     topx = top_data.TOP1_pts.sel(point_loc='tailbase_x').values; topy = top_data.TOP1_pts.sel(point_loc='tailbase_y').values
+        #     topdX = np.diff(topx); topdY = np.diff(topy)
+        #     top_speed = np.sqrt(topdX**2, topdY**2) # speed of tailbase in topdown camera
+        #     topT = top_data.timestamps.copy() # read in time timestamps
+        #     top_vid = np.uint8(top_data['TOP1_video']) # read in top video
+        #     # clear from memory
+        #     del top_data
+        #     gc.collect()
         # load IMU data
         if file_dict['imu'] is not None:
             print('opening imu data')
@@ -259,11 +262,13 @@ def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, h
             accTraw = imu_data.IMU_data.sample - ephysT0
         if free_move is False and has_mouse is True:
             speedT = spd_tstamps - ephysT0
-        if free_move is True:
-            topT = topT - ephysT0
-        # make space in memory
-        del eye_data
+        # if free_move is True:
+            # topT = topT - ephysT0
+        
+        ##### Clear some memory #####
+        del eye_data 
         gc.collect()
+
         if file_dict['drop_slow_frames'] is True:
             # in the case that the recording has long time lags, drop data in a window +/- 3 frames around these slow frames
             isfast = np.diff(eyeT)<=0.03
@@ -315,7 +320,7 @@ def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, h
             plt.xlabel('secs'); plt.ylabel('max cc')
             diagnostic_pdf.savefig()
             plt.close()
-            del ccmax
+            del ccmax, dEye
             gc.collect()
         if file_dict['imu'] is not None:
             print('fitting regression to timing drift')
@@ -340,6 +345,7 @@ def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, h
         if file_dict['imu'] is not None:
             accT = accTraw - (offset0 + accTraw*drift_rate)
             del accTraw
+            gc.collect()
         print('correcting ephys spike times for offset and timing drift')
         for i in ephys_data.index:
             ephys_data.at[i,'spikeT'] = np.array(ephys_data.at[i,'spikeTraw']) - (offset0 + np.array(ephys_data.at[i,'spikeTraw']) *drift_rate)
@@ -480,17 +486,15 @@ if __name__ == '__main__':
         ignore_reinit_error=True,
         logging_level=logging.ERROR,
     )
-    print(f'Dashboard URL: http://{ray.get_dashboard_url()}')
-    print('Dashboard URL: http://localhost:{}'.format(ray.get_dashboard_url().split(':')[-1]))
-    model_dt=.025
+    model_dt=.05
     free_move = True
     if free_move:
         stim_type = 'fm1'
     else:
         stim_type = 'hf1_wn' # 'fm1' # 
-
-    data_dir  = Path('~/Goeppert/freely_moving_ephys/ephys_recordings/070921/J553RT').expanduser() / stim_type
-    save_dir  = check_path(Path('~/Research/SensoryMotorPred_Data/data/070921/J553RT/').expanduser(), stim_type)
+    date_ani = '062921/G6HCK1ALTRN'
+    data_dir  = Path('~/Goeppert/freely_moving_ephys/ephys_recordings/').expanduser() / date_ani / stim_type
+    save_dir  = check_path(Path('~/Research/SensoryMotorPred_Data/data/').expanduser() / date_ani, stim_type)
     FigPath = check_path(Path('~/Research/SensoryMotorPred_Data').expanduser(),'Figures/Encoding')
 
     FigPath = check_path(FigPath, stim_type)
@@ -503,12 +507,13 @@ if __name__ == '__main__':
                 'imu': list(data_dir.glob('*imu.nc'))[0].as_posix() if stim_type=='fm1' else None,
                 'mapping_json': '/home/seuss/Research/Github/FreelyMovingEphys/probes/channel_maps.json',
                 'mp4': True,
-                'name': '070921_J553RT_control_Rig2_'+stim_type,
+                'name': '01221_EE8P6LT_control_Rig2_'+stim_type, #070921_J553RT
                 'probe_name': 'DB_P128-6',
                 'save': data_dir.as_posix(),
-                'speed': None,
+                'speed': list(data_dir.glob('*speed.nc'))[0].as_posix() if stim_type=='hf1_wn' else None,
                 'stim_type': 'light',
                 'top': list(data_dir.glob('*TOP1.nc'))[0].as_posix() if stim_type=='fm1' else None,
                 'world': list(data_dir.glob('*world.nc'))[0].as_posix(),}
 
     data = load_ephys_data_aligned(file_dict, save_dir, model_dt=model_dt, free_move=free_move, has_imu=True, has_mouse=False,)
+    ray.close()
