@@ -1,13 +1,9 @@
 import os
 import argparse
-import glob
 import sys 
-import yaml 
 import glob
-import h5py 
 import ray
 import logging 
-import json
 import gc
 import cv2
 import time
@@ -17,13 +13,15 @@ import pandas as pd
 import matplotlib.pyplot as plt 
 import xarray as xr
 
-from tqdm.auto import tqdm, trange
+from tqdm.auto import tqdm
 from pathlib import Path
 from scipy.interpolate import interp1d
 from scipy.ndimage import shift as imshift
 from sklearn.linear_model import LinearRegression
 from matplotlib.backends.backend_pdf import PdfPages
 from itertools import chain
+from sklearn.model_selection import GroupShuffleSplit
+
 
 sys.path.append(str(Path('.').absolute().parent))
 sys.path.append(str(Path('.').absolute()))
@@ -65,7 +63,7 @@ def shift_world_pt2(f, dt, world_vid, thInterp, phiInterp, ycorrection, xcorrect
     return world_vid2
 
 
-def grab_aligned_data(goodcells, worldT, accT, img_norm, gz, groll, gpitch, th_interp, phi_interp, free_move=True, model_dt=0.025,pxcrop=2):
+def grab_aligned_data(goodcells, worldT, accT, img_norm, gz, groll, gpitch, th_interp, phi_interp, free_move=True, model_dt=0.05,pxcrop=5):
     # get number of good units
     n_units = len(goodcells)
     # simplified setup for GLM
@@ -197,6 +195,7 @@ def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, h
             plt.plot(gz_deg[0:100*60])
             plt.title('gyro z (deg)')
             plt.xlabel('frame')
+            plt.tight_layout()
             diagnostic_pdf.savefig()
             plt.close()
         else: 
@@ -318,6 +317,7 @@ def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, h
             plt.subplot(1,2,2)
             plt.plot(eyeT[t1*60],ccmax)
             plt.xlabel('secs'); plt.ylabel('max cc')
+            plt.tight_layout()
             diagnostic_pdf.savefig()
             plt.close()
             del ccmax, dEye
@@ -335,6 +335,7 @@ def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, h
             plt.plot(dataT, offset0 + dataT*drift_rate)
             plt.xlabel('secs'); plt.ylabel('offset - secs')
             plt.title('offset0 = '+str(np.round(offset0,3))+' drift_rate = '+str(np.round(drift_rate,3)))
+            plt.tight_layout()
             diagnostic_pdf.savefig()
             plt.close()
             del dataT
@@ -365,53 +366,72 @@ def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, h
             phi_interp = interp1d(eyeT, phi, bounds_error=False)
             dth = np.diff(th_interp(worldT))
             dphi = np.diff(phi_interp(worldT))
-            # calculate x-y shift for each worldcam frame  
-            number_of_iterations = 5000
-            termination_eps = 1e-4
-            criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, number_of_iterations, termination_eps)
-            warp_mode = cv2.MOTION_TRANSLATION
+            if file_dict['imu'] is not None:
+                if (save_dir / 'FM_WorldShift_dt{:03d}.h5'.format(int(model_dt*1000))).exists():
+                    world_shifts = ioh5.load((save_dir / 'FM_WorldShift_dt{:03d}.h5'.format(int(model_dt*1000))))
+                    xmap = world_shifts['xmap']
+                    ymap = world_shifts['ymap']
+                    world_vid_r = ray.put(world_vid)
+                    warp_mat_duration = 0
+                else:
+                    # calculate x-y shift for each worldcam frame  
+                    number_of_iterations = 5000
+                    termination_eps = 1e-4
+                    criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, number_of_iterations, termination_eps)
+                    warp_mode = cv2.MOTION_TRANSLATION
 
-            # Parallel Testing
-            world_vid_r = ray.put(world_vid)
-            warp_mode_r = ray.put(warp_mode)
-            criteria_r = ray.put(criteria)
-            dt = 60
-            result_ids = []
-            [result_ids.append(shift_vid_parallel.remote(i, world_vid_r, warp_mode_r, criteria_r, dt)) for i in range(0, max_frames, dt)]
-            results_p = ray.get(result_ids)
-            results_p = np.array(results_p).transpose(0,2,1).reshape(-1,3)
+                    # Parallel Testing
+                    world_vid_r = ray.put(world_vid)
+                    warp_mode_r = ray.put(warp_mode)
+                    criteria_r = ray.put(criteria)
+                    dt = 60
+                    result_ids = []
+                    [result_ids.append(shift_vid_parallel.remote(i, world_vid_r, warp_mode_r, criteria_r, dt)) for i in range(0, max_frames, dt)]
+                    results_p = ray.get(result_ids)
+                    results_p = np.array(results_p).transpose(0,2,1).reshape(-1,3)
 
-            xshift = results_p[:,0]
-            yshift = results_p[:,1]
-            cc = results_p[:,2]
+                    xshift = results_p[:,0]
+                    yshift = results_p[:,1]
+                    cc = results_p[:,2]
 
-            xmodel = LinearRegression()
-            ymodel = LinearRegression()
+                    xmodel = LinearRegression()
+                    ymodel = LinearRegression()
 
-            # eye data as predictors
-            eyeData = np.zeros((max_frames,2))
-            eyeData[:,0] = dth[0:max_frames]
-            eyeData[:,1] = dphi[0:max_frames]
-            # shift in x and y as outputs
-            xshiftdata = xshift[0:max_frames]
-            yshiftdata = yshift[0:max_frames]
-            # only use good data
-            # not nans, good correlation between frames, small eye movements (no sacccades, only compensatory movements)
-            usedata = ~np.isnan(eyeData[:,0]) & ~np.isnan(eyeData[:,1]) & (cc>0.95)  & (np.abs(eyeData[:,0])<2) & (np.abs(eyeData[:,1])<2) & (np.abs(xshiftdata)<5) & (np.abs(yshiftdata)<5)
+                    # eye data as predictors
+                    eyeData = np.zeros((max_frames,2))
+                    eyeData[:,0] = dth[0:max_frames]
+                    eyeData[:,1] = dphi[0:max_frames]
+                    # shift in x and y as outputs
+                    xshiftdata = xshift[0:max_frames]
+                    yshiftdata = yshift[0:max_frames]
+                    # only use good data
+                    # not nans, good correlation between frames, small eye movements (no sacccades, only compensatory movements)
+                    usedata = ~np.isnan(eyeData[:,0]) & ~np.isnan(eyeData[:,1]) & (cc>0.95)  & (np.abs(eyeData[:,0])<2) & (np.abs(eyeData[:,1])<2) & (np.abs(xshiftdata)<5) & (np.abs(yshiftdata)<5)
 
-            # fit xshift
-            xmodel.fit(eyeData[usedata,:],xshiftdata[usedata])
-            xmap = xmodel.coef_
-            xrscore = xmodel.score(eyeData[usedata,:],xshiftdata[usedata])
-            # fit yshift
-            ymodel.fit(eyeData[usedata,:],yshiftdata[usedata])
-            ymap = ymodel.coef_
-            yrscore = ymodel.score(eyeData[usedata,:],yshiftdata[usedata])
-            warp_mat_duration = time.time() - start
-            print("warp mat duration =", warp_mat_duration)
-            del results_p, warp_mode_r, criteria_r, result_ids
-            gc.collect()
-
+                    # fit xshift
+                    xmodel.fit(eyeData[usedata,:],xshiftdata[usedata])
+                    xmap = xmodel.coef_
+                    xrscore = xmodel.score(eyeData[usedata,:],xshiftdata[usedata])
+                    # fit yshift
+                    ymodel.fit(eyeData[usedata,:],yshiftdata[usedata])
+                    ymap = ymodel.coef_
+                    yrscore = ymodel.score(eyeData[usedata,:],yshiftdata[usedata])
+                    world_shifts = {'xmap': xmap,
+                                    'ymap': ymap,
+                                    'xrscore': xrscore,
+                                    'yrscore': yrscore,
+                                    }
+                    ioh5.save((save_dir / 'FM_WorldShift_dt{:03d}.h5'.format(int(model_dt*1000))), world_shifts)
+                    warp_mat_duration = time.time() - start
+                    print("warp mat duration =", warp_mat_duration)
+                    del results_p, warp_mode_r, criteria_r, result_ids
+                    gc.collect()
+            elif file_dict['speed'] is not None:
+                world_shifts = ioh5.load((save_dir.parent / 'fm1' / 'FM_WorldShift_dt{:03d}.h5'.format(int(model_dt*1000))))
+                xmap = world_shifts['xmap']
+                ymap = world_shifts['ymap']
+                world_vid_r = ray.put(world_vid)
+                warp_mat_duration = 0
             start = time.time()
             print('estimating eye-world calibration')
             xcorrection_r = ray.put(xmap.copy())
@@ -470,6 +490,99 @@ def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, h
     print('Done Loading Aligned Data')
     return data
 
+def load_train_test(file_dict, save_dir, model_dt=.1, frac=.1, train_size=.7, do_shuffle=False, do_norm=False, free_move=True, has_imu=True, has_mouse=False,):
+    ##### Load in preprocessed data #####
+    data = load_ephys_data_aligned(file_dict, save_dir, model_dt=model_dt, free_move=free_move, has_imu=has_imu, has_mouse=has_mouse,)
+    if free_move:
+        ##### Find 'good' timepoints when mouse is active #####
+        nan_idxs = []
+        for key in data.keys():
+            nan_idxs.append(np.where(np.isnan(data[key]))[0])
+        good_idxs = np.ones(len(data['model_active']),dtype=bool)
+        good_idxs[data['model_active']<.5] = False
+        good_idxs[np.unique(np.hstack(nan_idxs))] = False
+    else:
+        good_idxs = np.where((np.abs(data['model_th'])<10) & (np.abs(data['model_phi'])<10))[0]
+    
+    data['raw_nsp'] = data['model_nsp'].copy()
+    ##### return only active data #####
+    for key in data.keys():
+        if (key != 'model_nsp') & (key != 'model_active') & (key != 'unit_nums'):
+            data[key] = data[key][good_idxs] # interp_nans(data[key]).astype(float)
+        elif (key == 'model_nsp'):
+            data[key] = data[key][good_idxs]
+        elif (key == 'unit_nums'):
+            pass
+    gss = GroupShuffleSplit(n_splits=1, train_size=train_size, random_state=42)
+    nT = data['model_nsp'].shape[0]
+    groups = np.hstack([i*np.ones(int((frac*i)*nT) - int((frac*(i-1))*nT)) for i in range(1,int(1/frac)+1)])
+
+    for train_idx, test_idx in gss.split(np.arange(len(data['model_nsp'])), groups=groups):
+        print("TRAIN:", len(train_idx), "TEST:", len(test_idx))
+
+
+    data['model_dth'] = np.diff(data['model_th'],append=0)
+    data['model_dphi'] = np.diff(data['model_phi'],append=0)
+
+    data['model_vid_sm'] = (data['model_vid_sm'] - np.mean(data['model_vid_sm'],axis=0))/np.nanstd(data['model_vid_sm'],axis=0)
+    data['model_vid_sm'][np.isnan(data['model_vid_sm'])]=0
+    if do_norm:
+        data['model_th'] = (data['model_th'] - np.mean(data['model_th'],axis=0))/np.std(data['model_th'],axis=0) 
+        data['model_phi'] = (data['model_phi'] - np.mean(data['model_phi'],axis=0))/np.std(data['model_phi'],axis=0) 
+        if free_move:
+            data['model_roll'] = (data['model_roll'] - np.mean(data['model_roll'],axis=0))/np.std(data['model_roll'],axis=0) 
+            data['model_pitch'] = (data['model_pitch'] - np.mean(data['model_pitch'],axis=0))/np.std(data['model_pitch'],axis=0) 
+
+    ##### Split Data by train/test #####
+    data_train_test = {
+        'train_vid': data['model_vid_sm'][train_idx],
+        'test_vid': data['model_vid_sm'][test_idx],
+        'train_nsp': shuffle(data['model_nsp'][train_idx],random_state=42) if do_shuffle else data['model_nsp'][train_idx],
+        'test_nsp': shuffle(data['model_nsp'][test_idx],random_state=42) if do_shuffle else data['model_nsp'][test_idx],
+        'train_th': data['model_th'][train_idx],
+        'test_th': data['model_th'][test_idx],
+        'train_phi': data['model_phi'][train_idx],
+        'test_phi': data['model_phi'][test_idx],
+        'train_roll': data['model_roll'][train_idx] if free_move else [],
+        'test_roll': data['model_roll'][test_idx] if free_move else [],
+        'train_pitch': data['model_pitch'][train_idx] if free_move else [],
+        'test_pitch': data['model_pitch'][test_idx] if free_move else [],
+        'train_t': data['model_t'][train_idx],
+        'test_t': data['model_t'][test_idx],
+        'train_dth': data['model_dth'][train_idx],
+        'test_dth': data['model_dth'][test_idx],
+        'train_dphi': data['model_dphi'][train_idx],
+        'test_dphi': data['model_dphi'][test_idx],
+        'train_gz': data['model_gz'][train_idx] if free_move else [],
+        'test_gz': data['model_gz'][test_idx] if free_move else [],
+    }
+
+    d1 = data
+    d1.update(data_train_test)
+    return d1,train_idx,test_idx
+
+
+def f_add(alpha,stat_range,stat_all):
+    return np.mean((stat_range - (stat_all+alpha))**2)
+
+def f_mult(alpha,stat_range,stat_all):
+    return np.mean((stat_range - (stat_all*alpha))**2)
+
+# Create Tuning curve for theta
+def tuning_curve(model_nsp, var, model_dt = .025, N_bins=10, Nstds=3):
+    var_range = np.linspace(np.nanmean(var)-Nstds*np.nanstd(var), np.nanmean(var)+Nstds*np.nanstd(var),N_bins)
+    tuning = np.zeros((model_nsp.shape[-1],len(var_range)-1))
+    tuning_std = np.zeros((model_nsp.shape[-1],len(var_range)-1))
+    for n in range(model_nsp.shape[-1]):
+        for j in range(len(var_range)-1):
+            usePts = (var>=var_range[j]) & (var<var_range[j+1])
+            tuning[n,j] = np.nanmean(model_nsp[usePts,n])/model_dt
+            tuning_std[n,j] = (np.nanstd(model_nsp[usePts,n])/model_dt)/ np.sqrt(np.count_nonzero(usePts))
+    return tuning, tuning_std, var_range[:-1]
+
+
+def consecutive(data, stepsize=1):
+    return np.split(data, np.where(np.diff(data) != stepsize)[0]+1)
 
 
 if __name__ == '__main__':
@@ -487,12 +600,12 @@ if __name__ == '__main__':
         logging_level=logging.ERROR,
     )
     model_dt=.05
-    free_move = True
+    free_move = False
     if free_move:
         stim_type = 'fm1'
     else:
         stim_type = 'hf1_wn' # 'fm1' # 
-    date_ani = '062921/G6HCK1ALTRN'
+    date_ani = '070921/J553RT'  # '062921/G6HCK1ALTRN'
     data_dir  = Path('~/Goeppert/freely_moving_ephys/ephys_recordings/').expanduser() / date_ani / stim_type
     save_dir  = check_path(Path('~/Research/SensoryMotorPred_Data/data/').expanduser() / date_ani, stim_type)
     FigPath = check_path(Path('~/Research/SensoryMotorPred_Data').expanduser(),'Figures/Encoding')
@@ -507,7 +620,7 @@ if __name__ == '__main__':
                 'imu': list(data_dir.glob('*imu.nc'))[0].as_posix() if stim_type=='fm1' else None,
                 'mapping_json': '/home/seuss/Research/Github/FreelyMovingEphys/probes/channel_maps.json',
                 'mp4': True,
-                'name': '01221_EE8P6LT_control_Rig2_'+stim_type, #070921_J553RT
+                 'name': '070921_J553RT_control_Rig2_'+stim_type,  # 070921_J553RT
                 'probe_name': 'DB_P128-6',
                 'save': data_dir.as_posix(),
                 'speed': list(data_dir.glob('*speed.nc'))[0].as_posix() if stim_type=='hf1_wn' else None,
@@ -516,4 +629,4 @@ if __name__ == '__main__':
                 'world': list(data_dir.glob('*world.nc'))[0].as_posix(),}
 
     data = load_ephys_data_aligned(file_dict, save_dir, model_dt=model_dt, free_move=free_move, has_imu=True, has_mouse=False,)
-    ray.close()
+    ray.shutdown()
