@@ -1,8 +1,22 @@
-name: pytorch
+name: pytorchGLM
 channels:
   - conda-forge
   - defaults
 dependencies:
   - python==3.8
-  - 
-prefix: /home/seuss/anaconda3/envs/pytorch
+  - scipy
+  - numpy
+  - pandas
+  - matplotlib
+  - xarray
+  - ipykernel
+  - tqdm
+  - h5py
+  - seaborn
+  - ipywidgets
+  - jupyterlab
+  - pip:
+    - opencv-python
+    - ray[default]
+    - sklearn
+prefix: /home/eabe/anaconda3/envs/pytorchGLM
