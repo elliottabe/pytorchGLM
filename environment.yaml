@@ -1,0 +1,8 @@
+name: pytorch
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python==3.8
+  - 
+prefix: /home/seuss/anaconda3/envs/pytorch

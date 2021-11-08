@@ -21,12 +21,92 @@ from sklearn.linear_model import LinearRegression
 from matplotlib.backends.backend_pdf import PdfPages
 from itertools import chain
 from sklearn.model_selection import GroupShuffleSplit
-
+from ray.actor import ActorHandle
+from typing import Tuple
+from asyncio import Event
+from sklearn.utils import shuffle
 
 sys.path.append(str(Path('.').absolute().parent))
 sys.path.append(str(Path('.').absolute()))
 from utils import *
 import io_dict_to_hdf5 as ioh5
+
+# ProgressBar
+@ray.remote
+class ProgressBarActor:
+    counter: int
+    delta: int
+    event: Event
+
+    def __init__(self) -> None:
+        self.counter = 0
+        self.delta = 0
+        self.event = Event()
+
+    def update(self, num_items_completed: int) -> None:
+        """Updates the ProgressBar with the incremental
+        number of items that were just completed.
+        """
+        self.counter += num_items_completed
+        self.delta += num_items_completed
+        self.event.set()
+
+    async def wait_for_update(self) -> Tuple[int, int]:
+        """Blocking call.
+
+        Waits until somebody calls `update`, then returns a tuple of
+        the number of updates since the last call to
+        `wait_for_update`, and the total number of completed items.
+        """
+        await self.event.wait()
+        self.event.clear()
+        saved_delta = self.delta
+        self.delta = 0
+        return saved_delta, self.counter
+
+    def get_counter(self) -> int:
+        """
+        Returns the total number of complete items.
+        """
+        return self.counter
+
+
+class ProgressBar:
+    progress_actor: ActorHandle
+    total: int
+    description: str
+    pbar: tqdm
+
+    def __init__(self, total: int, description: str = ""):
+        # Ray actors don't seem to play nice with mypy, generating
+        # a spurious warning for the following line,
+        # which we need to suppress. The code is fine.
+        self.progress_actor = ProgressBarActor.remote()  # type: ignore
+        self.total = total
+        self.description = description
+
+    @property
+    def actor(self) -> ActorHandle:
+        """Returns a reference to the remote `ProgressBarActor`.
+
+        When you complete tasks, call `update` on the actor.
+        """
+        return self.progress_actor
+
+    def print_until_done(self) -> None:
+        """Blocking call.
+
+        Do this after starting a series of remote Ray tasks, to which you've
+        passed the actor handle. Each of them calls `update` on the actor.
+        When the progress meter reaches 100%, this method returns.
+        """
+        pbar = tqdm(desc=self.description, total=self.total)
+        while True:
+            delta, counter = ray.get(self.actor.wait_for_update.remote())
+            pbar.update(delta)
+            if counter >= self.total:
+                pbar.close()
+                return
 
 @ray.remote
 def shift_vid_parallel(x, world_vid, warp_mode, criteria, dt):
@@ -63,7 +143,7 @@ def shift_world_pt2(f, dt, world_vid, thInterp, phiInterp, ycorrection, xcorrect
     return world_vid2
 
 
-def grab_aligned_data(goodcells, worldT, accT, img_norm, gz, groll, gpitch, th_interp, phi_interp, free_move=True, model_dt=0.05,pxcrop=5):
+def grab_aligned_data(goodcells, worldT, accT, img_norm, gz, groll, gpitch, th_interp, phi_interp, free_move=True, model_dt=0.05,pxcrop=5,do_worldcam_correction=True,**kwargs):
     # get number of good units
     n_units = len(goodcells)
     # simplified setup for GLM
@@ -107,13 +187,13 @@ def grab_aligned_data(goodcells, worldT, accT, img_norm, gz, groll, gpitch, th_i
     movInterp = interp1d(worldT, img_norm,'nearest', axis = 0,bounds_error = False) 
     testimg = movInterp(model_t[0])
     # testimg = cv2.resize(testimg,(int(np.shape(testimg)[1]*downsamp), int(np.shape(testimg)[0]*downsamp)))
-    if free_move:
+    if free_move & do_worldcam_correction:
         testimg = testimg[pxcrop:-pxcrop,pxcrop:-pxcrop]; #remove area affected by eye movement correction
     model_vid_sm = np.zeros((len(model_t),int(np.shape(testimg)[0]),int(np.shape(testimg)[1])),dtype=float)
     for i in tqdm(range(len(model_t))):
         model_vid = movInterp(model_t[i] + model_dt/2)
         # smallvid = cv2.resize(model_vid,(int(np.shape(img_norm)[2]*downsamp),int(np.shape(img_norm)[1]*downsamp)), interpolation=cv2.INTER_AREA)
-        if free_move:
+        if free_move & do_worldcam_correction:
             model_vid_sm[i,:] = model_vid[pxcrop:-pxcrop,pxcrop:-pxcrop]
         else: 
             model_vid_sm[i,:] = model_vid
@@ -122,11 +202,15 @@ def grab_aligned_data(goodcells, worldT, accT, img_norm, gz, groll, gpitch, th_i
     gc.collect()
     return model_vid_sm, model_nsp, model_t, model_th, model_phi, model_roll, model_pitch, model_active, model_gz
 
-def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, has_mouse=False, max_frames=60*60, model_dt=.025):
+def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, has_mouse=False, max_frames=60*60, model_dt=.025, do_worldcam_correction=True, reprocess=False,**kwargs):
         
     ##### Align Data #####
-    if (save_dir / 'ModelData_dt{:03d}.h5'.format(int(model_dt*1000))).exists():
-        data = ioh5.load((save_dir / 'ModelData_dt{:03d}.h5'.format(int(model_dt*1000))))
+    if do_worldcam_correction:
+        model_file = (save_dir / 'ModelData_dt{:03d}.h5'.format(int(model_dt*1000)))
+    else: 
+        model_file = save_dir / 'ModelData_dt{:03d}_rawWorldCam.h5'.format(int(model_dt*1000))
+    if (model_file.exists()) & (reprocess==False):
+        data = ioh5.load(model_file)
     else:
         diagnostic_pdf = PdfPages(save_dir /(file_dict['name'] + '_diagnostic_analysis_figures.pdf'))
         # open worldcam
@@ -137,9 +221,9 @@ def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, h
         # if size is larger than the target 60x80, resize by 0.5
         if sz[1]>160:
             downsamp = 0.5
-            world_vid = np.zeros((sz[0],np.int(sz[1]*downsamp),np.int(sz[2]*downsamp)), dtype = 'uint8')
+            world_vid = np.zeros((sz[0],int(sz[1]*downsamp),int(sz[2]*downsamp)), dtype = 'uint8')
             for f in range(sz[0]):
-                world_vid[f,:,:] = cv2.resize(world_vid_raw[f,:,:],(np.int(sz[2]*downsamp),np.int(sz[1]*downsamp)))
+                world_vid[f,:,:] = cv2.resize(world_vid_raw[f,:,:],(int(sz[2]*downsamp),int(sz[1]*downsamp)))
         else:
             # if the worldcam has already been resized when the nc file was written in preprocessing, don't resize
             world_vid = world_vid_raw.copy()
@@ -352,114 +436,119 @@ def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, h
             ephys_data.at[i,'spikeT'] = np.array(ephys_data.at[i,'spikeTraw']) - (offset0 + np.array(ephys_data.at[i,'spikeTraw']) *drift_rate)
         goodcells = ephys_data.loc[ephys_data['group']=='good']
         diagnostic_pdf.close()
+        np.save(file=(save_dir / 'uncorrected_worldcam_dt{:03d}.npy'.format(int(model_dt*1000))), arr=world_vid)
         
-        ##### Correction to world cam #####
-        if (save_dir / 'corrected_worldcam_dt{:03d}.npy'.format(int(model_dt*1000))).exists():
-            world_vid = np.load(save_dir / 'corrected_worldcam_dt{:03d}.npy'.format(int(model_dt*1000)), mmap_mode='r')
-            # get eye displacement for each worldcam frame
-            th_interp = interp1d(eyeT, th, bounds_error=False)
-            phi_interp = interp1d(eyeT, phi, bounds_error=False)
-        else:
-            start = time.time()
-            # get eye displacement for each worldcam frame
-            th_interp = interp1d(eyeT, th, bounds_error=False)
-            phi_interp = interp1d(eyeT, phi, bounds_error=False)
-            dth = np.diff(th_interp(worldT))
-            dphi = np.diff(phi_interp(worldT))
-            if file_dict['imu'] is not None:
-                if (save_dir / 'FM_WorldShift_dt{:03d}.h5'.format(int(model_dt*1000))).exists():
-                    world_shifts = ioh5.load((save_dir / 'FM_WorldShift_dt{:03d}.h5'.format(int(model_dt*1000))))
+        if do_worldcam_correction:
+            ##### Correction to world cam #####
+            if (save_dir / 'corrected_worldcam_dt{:03d}.npy'.format(int(model_dt*1000))).exists():
+                world_vid = np.load(save_dir / 'corrected_worldcam_dt{:03d}.npy'.format(int(model_dt*1000)), mmap_mode='r')
+                # get eye displacement for each worldcam frame
+                th_interp = interp1d(eyeT, th, bounds_error=False)
+                phi_interp = interp1d(eyeT, phi, bounds_error=False)
+            else:
+                start = time.time()
+                # get eye displacement for each worldcam frame
+                th_interp = interp1d(eyeT, th, bounds_error=False)
+                phi_interp = interp1d(eyeT, phi, bounds_error=False)
+                dth = np.diff(th_interp(worldT))
+                dphi = np.diff(phi_interp(worldT))
+                if file_dict['imu'] is not None:
+                    if (save_dir / 'FM_WorldShift_dt{:03d}.h5'.format(int(model_dt*1000))).exists():
+                        world_shifts = ioh5.load((save_dir / 'FM_WorldShift_dt{:03d}.h5'.format(int(model_dt*1000))))
+                        xmap = world_shifts['xmap']
+                        ymap = world_shifts['ymap']
+                        world_vid_r = ray.put(world_vid)
+                        warp_mat_duration = 0
+                    else:
+                        # calculate x-y shift for each worldcam frame  
+                        number_of_iterations = 5000
+                        termination_eps = 1e-4
+                        criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, number_of_iterations, termination_eps)
+                        warp_mode = cv2.MOTION_TRANSLATION
+
+                        # Parallel Testing
+                        world_vid_r = ray.put(world_vid)
+                        warp_mode_r = ray.put(warp_mode)
+                        criteria_r = ray.put(criteria)
+                        dt = 60
+                        result_ids = []
+                        [result_ids.append(shift_vid_parallel.remote(i, world_vid_r, warp_mode_r, criteria_r, dt)) for i in range(0, max_frames, dt)]
+                        results_p = ray.get(result_ids)
+                        results_p = np.array(results_p).transpose(0,2,1).reshape(-1,3)
+
+                        xshift = results_p[:,0]
+                        yshift = results_p[:,1]
+                        cc = results_p[:,2]
+
+                        xmodel = LinearRegression()
+                        ymodel = LinearRegression()
+
+                        # eye data as predictors
+                        eyeData = np.zeros((max_frames,2))
+                        eyeData[:,0] = dth[0:max_frames]
+                        eyeData[:,1] = dphi[0:max_frames]
+                        # shift in x and y as outputs
+                        xshiftdata = xshift[0:max_frames]
+                        yshiftdata = yshift[0:max_frames]
+                        # only use good data
+                        # not nans, good correlation between frames, small eye movements (no sacccades, only compensatory movements)
+                        usedata = ~np.isnan(eyeData[:,0]) & ~np.isnan(eyeData[:,1]) & (cc>0.95)  & (np.abs(eyeData[:,0])<2) & (np.abs(eyeData[:,1])<2) & (np.abs(xshiftdata)<5) & (np.abs(yshiftdata)<5)
+
+                        # fit xshift
+                        xmodel.fit(eyeData[usedata,:],xshiftdata[usedata])
+                        xmap = xmodel.coef_
+                        xrscore = xmodel.score(eyeData[usedata,:],xshiftdata[usedata])
+                        # fit yshift
+                        ymodel.fit(eyeData[usedata,:],yshiftdata[usedata])
+                        ymap = ymodel.coef_
+                        yrscore = ymodel.score(eyeData[usedata,:],yshiftdata[usedata])
+                        world_shifts = {'xmap': xmap,
+                                        'ymap': ymap,
+                                        'xrscore': xrscore,
+                                        'yrscore': yrscore,
+                                        }
+                        ioh5.save((save_dir / 'FM_WorldShift_dt{:03d}.h5'.format(int(model_dt*1000))), world_shifts)
+                        warp_mat_duration = time.time() - start
+                        print("warp mat duration =", warp_mat_duration)
+                        del results_p, warp_mode_r, criteria_r, result_ids
+                        gc.collect()
+                elif file_dict['speed'] is not None:
+                    world_shifts = ioh5.load((save_dir.parent / 'fm1' / 'FM_WorldShift_dt{:03d}.h5'.format(int(model_dt*1000))))
                     xmap = world_shifts['xmap']
                     ymap = world_shifts['ymap']
                     world_vid_r = ray.put(world_vid)
                     warp_mat_duration = 0
-                else:
-                    # calculate x-y shift for each worldcam frame  
-                    number_of_iterations = 5000
-                    termination_eps = 1e-4
-                    criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, number_of_iterations, termination_eps)
-                    warp_mode = cv2.MOTION_TRANSLATION
+                start = time.time()
+                print('estimating eye-world calibration')
+                xcorrection_r = ray.put(xmap.copy())
+                ycorrection_r = ray.put(ymap.copy())
+                print('shifting worldcam for eyes')
 
-                    # Parallel Testing
-                    world_vid_r = ray.put(world_vid)
-                    warp_mode_r = ray.put(warp_mode)
-                    criteria_r = ray.put(criteria)
-                    dt = 60
-                    result_ids = []
-                    [result_ids.append(shift_vid_parallel.remote(i, world_vid_r, warp_mode_r, criteria_r, dt)) for i in range(0, max_frames, dt)]
-                    results_p = ray.get(result_ids)
-                    results_p = np.array(results_p).transpose(0,2,1).reshape(-1,3)
+                thInterp_r = ray.put(th_interp(worldT))
+                phiInterp_r = ray.put(phi_interp(worldT))
 
-                    xshift = results_p[:,0]
-                    yshift = results_p[:,1]
-                    cc = results_p[:,2]
+                dt = 1000
+                result_ids2 = []
+                [result_ids2.append(shift_world_pt2.remote(f, dt, world_vid_r, thInterp_r, phiInterp_r, ycorrection_r, xcorrection_r)) for f in range(0, world_vid.shape[0], dt)] # 
+                results = ray.get(result_ids2)
+                world_vid = np.concatenate(results,axis=0).astype(np.uint8)
+                print('saving worldcam video corrected for eye movements')
+                np.save(file=(save_dir / 'corrected_worldcam_dt{:03d}.npy'.format(int(model_dt*1000))), arr=world_vid)
+                shift_world_duration = time.time() - start
+                print("shift world duration =", shift_world_duration)
+                print('Total Duration:', warp_mat_duration + shift_world_duration)
+        else:
+            th_interp = interp1d(eyeT, th, bounds_error=False)
+            phi_interp = interp1d(eyeT, phi, bounds_error=False)
 
-                    xmodel = LinearRegression()
-                    ymodel = LinearRegression()
-
-                    # eye data as predictors
-                    eyeData = np.zeros((max_frames,2))
-                    eyeData[:,0] = dth[0:max_frames]
-                    eyeData[:,1] = dphi[0:max_frames]
-                    # shift in x and y as outputs
-                    xshiftdata = xshift[0:max_frames]
-                    yshiftdata = yshift[0:max_frames]
-                    # only use good data
-                    # not nans, good correlation between frames, small eye movements (no sacccades, only compensatory movements)
-                    usedata = ~np.isnan(eyeData[:,0]) & ~np.isnan(eyeData[:,1]) & (cc>0.95)  & (np.abs(eyeData[:,0])<2) & (np.abs(eyeData[:,1])<2) & (np.abs(xshiftdata)<5) & (np.abs(yshiftdata)<5)
-
-                    # fit xshift
-                    xmodel.fit(eyeData[usedata,:],xshiftdata[usedata])
-                    xmap = xmodel.coef_
-                    xrscore = xmodel.score(eyeData[usedata,:],xshiftdata[usedata])
-                    # fit yshift
-                    ymodel.fit(eyeData[usedata,:],yshiftdata[usedata])
-                    ymap = ymodel.coef_
-                    yrscore = ymodel.score(eyeData[usedata,:],yshiftdata[usedata])
-                    world_shifts = {'xmap': xmap,
-                                    'ymap': ymap,
-                                    'xrscore': xrscore,
-                                    'yrscore': yrscore,
-                                    }
-                    ioh5.save((save_dir / 'FM_WorldShift_dt{:03d}.h5'.format(int(model_dt*1000))), world_shifts)
-                    warp_mat_duration = time.time() - start
-                    print("warp mat duration =", warp_mat_duration)
-                    del results_p, warp_mode_r, criteria_r, result_ids
-                    gc.collect()
-            elif file_dict['speed'] is not None:
-                world_shifts = ioh5.load((save_dir.parent / 'fm1' / 'FM_WorldShift_dt{:03d}.h5'.format(int(model_dt*1000))))
-                xmap = world_shifts['xmap']
-                ymap = world_shifts['ymap']
-                world_vid_r = ray.put(world_vid)
-                warp_mat_duration = 0
-            start = time.time()
-            print('estimating eye-world calibration')
-            xcorrection_r = ray.put(xmap.copy())
-            ycorrection_r = ray.put(ymap.copy())
-            print('shifting worldcam for eyes')
-
-            thInterp_r = ray.put(th_interp(worldT))
-            phiInterp_r = ray.put(phi_interp(worldT))
-
-            dt = 1000
-            result_ids2 = []
-            [result_ids2.append(shift_world_pt2.remote(f, dt, world_vid_r, thInterp_r, phiInterp_r, ycorrection_r, xcorrection_r)) for f in range(0, world_vid.shape[0], dt)] # 
-            results = ray.get(result_ids2)
-            world_vid = np.concatenate(results,axis=0).astype(np.uint8)
-            print('saving worldcam video corrected for eye movements')
-            np.save(file=(save_dir / 'corrected_worldcam_dt{:03d}.npy'.format(int(model_dt*1000))), arr=world_vid)
-            shift_world_duration = time.time() - start
-            print("shift world duration =", shift_world_duration)
-            print('Total Duration:', warp_mat_duration + shift_world_duration)
-            
         ##### Calculating image norm #####
         print('Calculating Image Norm')
         start = time.time()
         sz = np.shape(world_vid)
         downsamp = 0.25
-        world_vid_sm = np.zeros((sz[0],np.int(sz[1]*downsamp),np.int(sz[2]*downsamp)))
+        world_vid_sm = np.zeros((sz[0],int(sz[1]*downsamp),int(sz[2]*downsamp)))
         for f in range(sz[0]):
-            world_vid_sm[f,:,:] = cv2.resize(world_vid[f,:,:],(np.int(sz[2]*downsamp),np.int(sz[1]*downsamp)))
+            world_vid_sm[f,:,:] = cv2.resize(world_vid[f,:,:],(int(sz[2]*downsamp),int(sz[1]*downsamp)))
         std_im = np.std(world_vid_sm, axis=0, dtype=float)
         img_norm = ((world_vid_sm-np.mean(world_vid_sm,axis=0,dtype=float))/std_im).astype(float)
         std_im[std_im<20] = 0
@@ -471,7 +560,7 @@ def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, h
 
         start = time.time()
         model_vid_sm, model_nsp, model_t, model_th, model_phi, model_roll, model_pitch, model_active, model_gz = grab_aligned_data(
-            goodcells, worldT, accT, img_norm, gz, groll, gpitch, th_interp, phi_interp, free_move=free_move, model_dt=model_dt)
+            goodcells, worldT, accT, img_norm, gz, groll, gpitch, th_interp, phi_interp, free_move=free_move, model_dt=model_dt,do_worldcam_correction=do_worldcam_correction,**kwargs)
 
         data = {'model_vid_sm': model_vid_sm,
                 'model_nsp': model_nsp.T,
@@ -484,15 +573,18 @@ def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, h
                 'model_gz': model_gz,
                 'unit_nums': units}
         
-        ioh5.save( (save_dir / 'ModelData_dt{:03d}.h5'.format(int(model_dt*1000))), data)
+        ioh5.save(model_file, data)
         align_data_duration = time.time() - start
         print("align_data_duration =", align_data_duration)
-    print('Done Loading Aligned Data')
+    if do_worldcam_correction:
+        print('Done Loading Aligned Data')
+    else: 
+        print('Done Loading Unaligned data')
     return data
 
-def load_train_test(file_dict, save_dir, model_dt=.1, frac=.1, train_size=.7, do_shuffle=False, do_norm=False, free_move=True, has_imu=True, has_mouse=False,):
+def load_train_test(file_dict, save_dir, model_dt=.1, frac=.1, train_size=.7, do_shuffle=False, do_norm=False, free_move=True, has_imu=True, has_mouse=False,**kwargs):
     ##### Load in preprocessed data #####
-    data = load_ephys_data_aligned(file_dict, save_dir, model_dt=model_dt, free_move=free_move, has_imu=has_imu, has_mouse=has_mouse,)
+    data = load_ephys_data_aligned(file_dict, save_dir, model_dt=model_dt, free_move=free_move, has_imu=has_imu, has_mouse=has_mouse,**kwargs)
     if free_move:
         ##### Find 'good' timepoints when mouse is active #####
         nan_idxs = []
@@ -502,7 +594,7 @@ def load_train_test(file_dict, save_dir, model_dt=.1, frac=.1, train_size=.7, do
         good_idxs[data['model_active']<.5] = False
         good_idxs[np.unique(np.hstack(nan_idxs))] = False
     else:
-        good_idxs = np.where((np.abs(data['model_th'])<10) & (np.abs(data['model_phi'])<10))[0]
+        good_idxs = np.where((np.abs(data['model_th'])<10) & (np.abs(data['model_phi'])<10))[0].astype(int)
     
     data['raw_nsp'] = data['model_nsp'].copy()
     ##### return only active data #####
