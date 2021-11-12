@@ -25,6 +25,7 @@ from ray.actor import ActorHandle
 from typing import Tuple
 from asyncio import Event
 from sklearn.utils import shuffle
+from scipy.signal import medfilt
 
 sys.path.append(str(Path('.').absolute().parent))
 sys.path.append(str(Path('.').absolute()))
@@ -202,7 +203,7 @@ def grab_aligned_data(goodcells, worldT, accT, img_norm, gz, groll, gpitch, th_i
     gc.collect()
     return model_vid_sm, model_nsp, model_t, model_th, model_phi, model_roll, model_pitch, model_active, model_gz
 
-def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, has_mouse=False, max_frames=60*60, model_dt=.025, do_worldcam_correction=True, reprocess=False,**kwargs):
+def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, has_mouse=False, max_frames=60*60, model_dt=.025, do_worldcam_correction=True, reprocess=False, medfiltbins=11, **kwargs):
         
     ##### Align Data #####
     if do_worldcam_correction:
@@ -272,8 +273,8 @@ def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, h
             gy_deg = np.array(acc_chans.sel(channel='gyro_y'))
             gz_deg = np.array(acc_chans.sel(channel='gyro_z'))
             # pitch and roll in deg
-            groll = np.array(acc_chans.sel(channel='roll'))
-            gpitch = np.array(acc_chans.sel(channel='pitch'))
+            groll = medfilt(np.array(acc_chans.sel(channel='roll')),medfiltbins)
+            gpitch = medfilt(np.array(acc_chans.sel(channel='pitch')),medfiltbins)
             # figure of gyro z
             plt.figure()
             plt.plot(gz_deg[0:100*60])
