@@ -13,7 +13,7 @@ import pandas as pd
 import matplotlib.pyplot as plt 
 import xarray as xr
 
-from tqdm.auto import tqdm
+from tqdm.notebook import tqdm
 from pathlib import Path
 from scipy.interpolate import interp1d
 from scipy.ndimage import shift as imshift
