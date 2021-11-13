@@ -125,6 +125,7 @@ class PoissonGLM_VM_staticreg(nn.Module):
             if reg_alphm != None:
                 self.alpha_m = reg_alphm*torch.ones(out_features).to(device)
             self.move_weights = nn.Parameter(torch.zeros(out_features,move_features), requires_grad=True)
+            self.bias_m = torch.nn.Parameter(torch.zeros(out_features),requires_grad=True)
         self.in_features = in_features
         self.out_features = out_features
         self.bias = bias
@@ -173,7 +174,7 @@ class PoissonGLM_VM_staticreg(nn.Module):
             return 0
         output = inputs.matmul(self.weight.t())
         if move_input != None:
-            output = output + move_input.matmul(self.move_weights.t())
+            output = output + (move_input.matmul(self.move_weights.t()) + self.bias_m)
         if self.bias is not None:
             output = output + self.bias
         if self.LinNetwork==True:
@@ -224,13 +225,14 @@ class PoissonGLM_AddMult(nn.Module):
         super(PoissonGLM_AddMult, self).__init__()
         self.move_features = move_features
         self.LinNetwork = LinNetwork
-
+        self.reg_alphm = reg_alphm
         if self.move_features != None:
             if reg_lam != None:
                 self.lam_m = reg_alph*torch.ones(out_features).to(device)
             if reg_alphm != None:
                 self.alpha_m = reg_alphm*torch.ones(out_features).to(device)
             self.move_weights = nn.Parameter(1e-6*torch.ones(out_features,move_features), requires_grad=True)
+            self.bias_m = torch.nn.Parameter(torch.zeros(out_features),requires_grad=True)
         self.in_features = in_features
         self.out_features = out_features
         self.bias = bias
@@ -276,11 +278,11 @@ class PoissonGLM_AddMult(nn.Module):
             output = output + self.bias
         if self.LinNetwork==True:
             if move_input != None:
-                output = output + move_input.matmul(self.move_weights.T)
+                output = output + (move_input.matmul(self.move_weights.T) + self.bias_m)
             ret = torch.relu(output)
         else:
             if move_input != None:
-                output = output*move_input.matmul(self.move_weights.T)
+                output = output*(move_input.matmul(self.move_weights.T) + self.bias_m)
             ret = torch.relu(output)
         return ret
     
@@ -298,11 +300,13 @@ class PoissonGLM_AddMult(nn.Module):
             # loss_vec = torch.mean(Yhat-Y*torch.log(Yhat),axis=0) 
         if self.move_features != None:
             if self.reg_alph != None:
-                l1_regm = self.alpha_m*(torch.linalg.norm(self.weight[:,-self.move_features:],axis=1,ord=1))
                 l1_reg = self.alpha*(torch.linalg.norm(self.weight,axis=1,ord=1))
             else: 
-                l1_regm = 0
                 l1_reg = 0
+            if self.reg_alphm != None:
+                l1_regm = self.alpha_m*(torch.linalg.norm(self.weight[:,-self.move_features:],axis=1,ord=1))
+            else: 
+                l1_regm = 0
             loss_vec = loss_vec + l1_reg + l1_regm
         else:
             if self.reg_lam != None:
