@@ -333,7 +333,7 @@ def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, h
         th = np.array((eye_params.sel(ellipse_params = 'theta'))*180/np.pi)# -np.nanmean(eye_params.sel(ellipse_params = 'theta'))
         phi = np.array((eye_params.sel(ellipse_params = 'phi'))*180/np.pi)# -np.nanmean(eye_params.sel(ellipse_params = 'phi'))
         if free_move:
-            fm_eye= np.array([np.nanmean(th),np.nanmean(phi)])
+            fm_eye= np.array([np.nanmean(th),np.nanmean(phi),np.nanstd(th),np.nanstd(phi)])
             np.save(save_dir/'FM_AvgEye_dt{:03d}.npy'.format(int(model_dt*1000)),fm_eye)
         print('adjusting camera times to match ephys')
         # adjust eye/world/top times relative to ephys
@@ -633,8 +633,8 @@ def load_train_test(file_dict, save_dir, model_dt=.1, frac=.1, train_size=.7, do
     data['model_vid_sm'] = (data['model_vid_sm'] - np.mean(data['model_vid_sm'],axis=0))/np.nanstd(data['model_vid_sm'],axis=0)
     data['model_vid_sm'][np.isnan(data['model_vid_sm'])]=0
     if do_norm:
-        data['model_th'] = (data['model_th'] - np.nanmean(data['model_th'],axis=0))/np.nanstd(data['model_th'],axis=0) 
-        data['model_phi'] = (data['model_phi'] - np.nanmean(data['model_phi'],axis=0))/np.nanstd(data['model_phi'],axis=0) 
+        data['model_th'] = (data['model_th'])/avgfm_eye[2] # np.nanstd(data['model_th'],axis=0) 
+        data['model_phi'] = (data['model_phi'])/avgfm_eye[3] # np.nanstd(data['model_phi'],axis=0) 
         if free_move:
             data['model_roll'] = (data['model_roll'] - np.nanmean(data['model_roll'],axis=0))/np.nanstd(data['model_roll'],axis=0) 
             data['model_pitch'] = (data['model_pitch'] - np.nanmean(data['model_pitch'],axis=0))/np.nanstd(data['model_pitch'],axis=0) 

@@ -40,21 +40,26 @@ from models import *
 from fit_GLM import *
 
 
-def plot_shifter_output(data,params):
+def plot_shifter_output(GLM_Data,params,l1):
+    best_shifter = np.nanargmin(np.nanmean(GLM_Data['loss_regcv'][0,:],axis=-1))
+    a = 0
+    # save_model2 = save_model/'Shifter'
     model_vid_sm_shift2 = {}
-    pdf_name = params['fig_dir']/ 'VisMov_{}_dt{:03d}_Lags{:02d}_MovModel{:d}_CellSummary.pdf'.format('Pytorch_VisMov_AddMul_NoL1_Shifter',int(params['model_dt']*1000),params['nt_glm_lag'], MovModel)
+    pdf_name = fig_dir/ 'VisMov_{}_dt{:03d}_Lags{:02d}_MovModel{:d}_CellSummary.pdf'.format('Pytorch_VisMov_AddMul_NoL1_Shifter',int(params['model_dt']*1000),params['nt_glm_lag'], MovModel)
     with PdfPages(pdf_name) as pdf:
         for l in tqdm(range(len(params['lambdas']))):
-            model_name = 'GLM_{}_WC{}_dt{:03d}_T{:02d}_MovModel{:d}_NB{}_alph{}_lam{}_Kfold{:01d}.pth'.format(model_type,'UC',int(params['model_dt']*1000), params['nt_glm_lag'], MovModel, 5000,a,l,Kfold)
+            model_name = 'GLM_{}_WC{}_dt{:03d}_T{:02d}_MovModel{:d}_NB{}_alph{}_lam{}_Kfold{:01d}.pth'.format(model_type,'UC',int(params['model_dt']*1000), params['nt_glm_lag'], MovModel, params['Nepochs'],a,l,Kfold)
             # model_name = 'GLMShifter_WC{}_dt{:03d}_T{:02d}_MovModel{:d}_NB{}_pretrain_xyz.pth'.format(WC_type,int(params['model_dt']*1000), params['nt_glm_lag'] MovModel, Nbatches)
             checkpoint = torch.load(params['save_model']/model_name)
             l1.load_state_dict(checkpoint['model_state_dict'])
+            l1.cpu()
+            # ang_sweepx,ang_sweepy,ang_sweepz = np.meshgrid(np.arange(-40,40),np.arange(-40,40),np.arange(-40,40),sparse=False,indexing='ij')
+            ang_sweepx,ang_sweepy,ang_sweepz = np.meshgrid(np.linspace(-3,3,81),np.linspace(-3,3,81),np.linspace(-3,3,81),sparse=False,indexing='ij')
 
-            ang_sweepx,ang_sweepy,ang_sweepz = np.meshgrid(np.arange(-50,50),np.arange(-50,50),np.arange(-50,50),sparse=False,indexing='ij')
             shift_mat = np.zeros((3,) + ang_sweepx.shape)
             for i in range(ang_sweepx.shape[0]):
                 for j in range(ang_sweepy.shape[1]):
-                    ang_sweep = torch.from_numpy(np.vstack((ang_sweepx[i,j,:],ang_sweepy[i,j,:],ang_sweepz[i,j,:])).astype(np.float32).T).to(device)
+                    ang_sweep = torch.from_numpy(np.vstack((ang_sweepx[i,j,:],ang_sweepy[i,j,:],ang_sweepz[i,j,:])).astype(np.float32).T)
                     shift_vec = l1.shifter_nn(ang_sweep).detach().cpu().numpy()
                     shift_mat[0,i,j] = shift_vec[:,0]
                     shift_mat[1,i,j] = shift_vec[:,1]
@@ -106,12 +111,11 @@ def plot_shifter_output(data,params):
             ax[3].set_title('Rotational: Theta=0')
             plt.tight_layout()
 
-            fig.savefig(fig_dir/'ThetaPhiPitch_Shifter_lam{}.png'.format(l), facecolor='white', transparent=True, bbox_inches='tight')
             pdf.savefig()
             plt.close()
-            shift_out = l1.shifter_nn(torch.from_numpy(model_move[:,(0,1,3)].astype(np.float32)).to(device))
+            shift_out = l1.shifter_nn(torch.from_numpy(model_move[:,(0,1,3)].astype(np.float32)))
             shift = Affine(angle=shift_out[:,-1],translation=shift_out[:,:2])
-            model_vid_sm_shift = shift(torch.from_numpy(data['model_vid_sm'][:,np.newaxis].astype(np.float32)).to(device)).detach().cpu().numpy().squeeze()
+            model_vid_sm_shift = shift(torch.from_numpy(data['model_vid_sm'][:,np.newaxis].astype(np.float32))).detach().cpu().numpy().squeeze()
 
             model_vid_sm_shift2['model_vid_sm_shift{}'.format(l)] = model_vid_sm_shift
-    ioh5.save(save_dir/'ModelWC_shifted_dt{:03d}_MovModel{:d}.h5'.format(int(params['model_dt']*1000), MovModel),model_vid_sm_shift2)
+        ioh5.save(save_dir/'ModelWC_shifted_dt{:03d}_MovModel{:d}.h5'.format(int(params['model_dt']*1000), MovModel),model_vid_sm_shift2)
