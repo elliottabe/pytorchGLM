@@ -342,7 +342,7 @@ class LinVisNetwork(nn.Module):
         if self.train_shifter: 
             batchsize, timesize, x, y = inputs.shape
             dxy = self.shifter_nn(eye_input)
-            shift = Affine(angle=dxy[:,-1],translation=dxy[:,:2])
+            shift = Affine(angle=torch.clamp(dxy[:,-1],min=-30,max=30),translation=torch.clamp(dxy[:,:2],min=-15,max=15))
             inputs = shift(inputs)
             inputs = inputs.reshape(batchsize,-1).contiguous()
         # fowrad pass of GLM 
@@ -364,7 +364,7 @@ class LinVisNetwork(nn.Module):
             else:
                 move_out = self.posNN['Layer0'](move_input)
                 # move_out = self.activations['SoftPlus'](move_out)
-                move_out = torch.exp(move_out)
+                # move_out = torch.exp(move_out)
                 output = output*move_out
         ret = self.activations['ReLU'](output)
         return ret
@@ -491,7 +491,7 @@ class VisNetwork(nn.Module):
             else:
                 move_out = self.posNN['Layer0'](move_input)
                 # move_out = self.activations['SoftPlus'](move_out)
-                move_out = torch.exp(move_out)
+                # move_out = torch.exp(move_out)
                 output = output*move_out
         ret = self.activations['ReLU'](output)
         return ret

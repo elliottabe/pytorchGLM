@@ -81,15 +81,14 @@ def train_model(xtr,xte,xtrm,xtem,shift_in_tr,shift_in_te,ytr,yte,Nepochs,l1,opt
     return vloss_trace, tloss_trace, l1, optimizer, scheduler, Epoch_GLM
 
 def load_GLM_data(data, params, train_idx, test_idx):
-    avgfm_eye = np.load(params['save_dir_fm']/'FM_AvgEye_dt{:03d}.npy'.format(int(params['model_dt']*1000)))
     if params['free_move']:
-        move_train = np.hstack((data['train_th'][:, np.newaxis]-avgfm_eye[0], data['train_phi'][:, np.newaxis]-avgfm_eye[1],data['train_roll'][:, np.newaxis], data['train_pitch'][:, np.newaxis]))
-        move_test = np.hstack((data['test_th'][:, np.newaxis]-avgfm_eye[0], data['test_phi'][:, np.newaxis]-avgfm_eye[1],data['test_roll'][:, np.newaxis], data['test_pitch'][:, np.newaxis]))
-        model_move = np.hstack((data['model_th'][:, np.newaxis]-avgfm_eye[0], data['model_phi'][:, np.newaxis]-avgfm_eye[1],data['model_roll'][:, np.newaxis], data['model_pitch'][:, np.newaxis]))
+        move_train = np.hstack((data['train_th'][:, np.newaxis], data['train_phi'][:, np.newaxis],data['train_roll'][:, np.newaxis], data['train_pitch'][:, np.newaxis]))
+        move_test = np.hstack((data['test_th'][:, np.newaxis], data['test_phi'][:, np.newaxis],data['test_roll'][:, np.newaxis], data['test_pitch'][:, np.newaxis]))
+        model_move = np.hstack((data['model_th'][:, np.newaxis], data['model_phi'][:, np.newaxis],data['model_roll'][:, np.newaxis], data['model_pitch'][:, np.newaxis]))
     else:
-        move_train = np.hstack((data['train_th'][:, np.newaxis]-avgfm_eye[0], data['train_phi'][:, np.newaxis]-avgfm_eye[1], np.zeros(data['train_phi'].shape)[:, np.newaxis], np.zeros(data['train_phi'].shape)[:, np.newaxis]))
-        move_test = np.hstack((data['test_th'][:, np.newaxis]-avgfm_eye[0], data['test_phi'][:, np.newaxis]-avgfm_eye[1], np.zeros(data['test_phi'].shape)[:, np.newaxis], np.zeros(data['test_phi'].shape)[:, np.newaxis]))
-        model_move = np.hstack((data['model_th'][:, np.newaxis]-avgfm_eye[0], data['model_phi'][:, np.newaxis]-avgfm_eye[1], np.zeros(data['model_phi'].shape)[:, np.newaxis], np.zeros(data['model_phi'].shape)[:, np.newaxis]))
+        move_train = np.hstack((data['train_th'][:, np.newaxis], data['train_phi'][:, np.newaxis], np.zeros(data['train_phi'].shape)[:, np.newaxis], np.zeros(data['train_phi'].shape)[:, np.newaxis]))
+        move_test = np.hstack((data['test_th'][:, np.newaxis], data['test_phi'][:, np.newaxis], np.zeros(data['test_phi'].shape)[:, np.newaxis], np.zeros(data['test_phi'].shape)[:, np.newaxis]))
+        model_move = np.hstack((data['model_th'][:, np.newaxis], data['model_phi'][:, np.newaxis], np.zeros(data['model_phi'].shape)[:, np.newaxis], np.zeros(data['model_phi'].shape)[:, np.newaxis]))
 
     ##### Save dimension #####    
     params['nks'] = np.shape(data['train_vid'])[1:]
@@ -112,7 +111,7 @@ def load_GLM_data(data, params, train_idx, test_idx):
         data['train_nsp']=data['train_nsp'][train_range]
         data['test_nsp']=data['test_nsp'][test_range]
     else:    
-        model_vid_sm_shift = ioh5.load(params['save_dir']/'ModelWC_shifted_dt{:03d}_MovModel{:d}.h5'.format(int(params['model_dt']*1000), 1))['model_vid_sm_shift{}'.format(params['shiftn'])]  # [:,5:-5,5:-5]
+        model_vid_sm_shift = ioh5.load(params['save_dir']/'ModelWC_shifted_dt{:03d}_MovModel{:d}.h5'.format(int(params['model_dt']*1000), 1))['model_vid_sm_shift']  # [:,5:-5,5:-5]
         nks = np.shape(model_vid_sm_shift)[1:]
         nk = nks[0]*nks[1]*params['nt_glm_lag']
         rolled_vid = np.hstack([np.roll(model_vid_sm_shift, nframes, axis=0) for nframes in params['lag_list']])  
@@ -177,7 +176,7 @@ def load_GLM_data(data, params, train_idx, test_idx):
         xtem = torch.from_numpy(move_test.astype(np.float32)).to(device)
         params['move_features'] = xtrm.shape[-1]
         params['alphas'] = np.array([None])
-        params['alphas2'] = np.array([.5])
+        params['alphas2'] = np.array([None])
         params['lambdas'] =  np.hstack((np.logspace(-3, 4, 10)[0], np.logspace(-3, 4, 40)))
         params['nalph'] = len(params['alphas'])
         params['alphas_m'] = np.array(params['nalph']*[None])
@@ -187,13 +186,12 @@ def load_GLM_data(data, params, train_idx, test_idx):
         params['lr_m'] = [1e-6, 1e-3]
         params['lr_b'] = [1e-6, 1e-3]
 
-
-    hidden_size = params['hidden_size']
+    hidden_size = ytr.shape[-1]
     params['lr_shift'] = [1e-3,1e-1]
     meanbias = torch.mean(torch.tensor(data['model_nsp'], dtype=torch.float32), axis=0)
     params['Ncells'] = ytr.shape[-1]
 
-    return params, xtr, xtrm, xte, xtem, ytr, yte, shift_in_tr, shift_in_te, input_size, hidden_size, output_size, model_type, meanbias
+    return params, xtr, xtrm, xte, xtem, ytr, yte, shift_in_tr, shift_in_te, input_size, hidden_size, output_size, model_type, meanbias, model_move
 
 def load_params(MovModel,Kfolds,args,debug=False):
 
@@ -297,7 +295,7 @@ if __name__ == '__main__':
 
     a=0
     for Kfold in np.arange(args['NKfold']):
-        for ModelRun in np.arange(1,4):
+        for ModelRun in np.arange(2,4):
             if ModelRun == 1:
                 args['Nepochs'] = 12000
                 params, file_dict, exp = load_params(1,Kfold,args)
@@ -307,17 +305,16 @@ if __name__ == '__main__':
             elif ModelRun == 3:
                 args['Nepochs'] = 5000
                 params, file_dict, exp = load_params(3,Kfold,args)
-
-
+            
             data, train_idx_list, test_idx_list = load_train_test(file_dict, **params)
             train_idx = train_idx_list[Kfold]
             test_idx = test_idx_list[Kfold]
             data = load_Kfold_data(data,train_idx,test_idx,params)
             # locals().update(data)
 
-            params, xtr, xtrm, xte, xtem, ytr, yte, shift_in_tr, shift_in_te, input_size, hidden_size, output_size, model_type, meanbias = load_GLM_data(data, params, train_idx, test_idx)
+            params, xtr, xtrm, xte, xtem, ytr, yte, shift_in_tr, shift_in_te, input_size, hidden_size, output_size, model_type, meanbias, model_move = load_GLM_data(data, params, train_idx, test_idx)
             print('Model: {}, LinMix: {}, move_features: {}'.format(params['MovModel'],params['LinMix'], params['move_features']))
-            
+
             GLM_CV = {}
             GLM_CV['loss_regcv']      = np.zeros((params['nalph'], params['nlam'], output_size))
             GLM_CV['pred_cv']         = np.zeros((params['nalph'], params['nlam'], output_size, xte.shape[0]), dtype=np.float32)

@@ -26,6 +26,7 @@ from typing import Tuple
 from asyncio import Event
 from sklearn.utils import shuffle
 from scipy.signal import medfilt
+from scipy.stats import binned_statistic
 
 sys.path.append(str(Path('.').absolute().parent))
 sys.path.append(str(Path('.').absolute()))
@@ -237,11 +238,13 @@ def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, h
         fig, axs = plt.subplots(1,2)
         axs[0].plot(np.diff(worldT)[0:-1:10]); axs[0].set_xlabel('every 10th frame'); axs[0].set_ylabel('deltaT'); axs[0].set_title('worldcam timing')
         axs[1].hist(np.diff(worldT),100);axs[1].set_xlabel('deltaT')
+        plt.tight_layout()
         diagnostic_pdf.savefig()
         plt.close()
         # plot mean world image
         plt.figure()
         plt.imshow(np.mean(world_vid,axis=0)); plt.title('mean world image')
+        plt.tight_layout()
         diagnostic_pdf.savefig()
         plt.close()
         # if free_move == True:
@@ -325,6 +328,7 @@ def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, h
         fig, axs = plt.subplots(1,2)
         axs[0].plot(np.diff(eyeT)[0:-1:10]); axs[0].set_xlabel('every 10th frame'); axs[0].set_ylabel('deltaT'); axs[0].set_title('eyecam timing')
         axs[1].hist(np.diff(eyeT),100);axs[1].set_xlabel('deltaT')
+        plt.tight_layout()
         diagnostic_pdf.savefig()
         plt.close()
         # plot eye postion across recording
@@ -332,9 +336,13 @@ def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, h
         # define theta, phi and zero-center
         th = np.array((eye_params.sel(ellipse_params = 'theta'))*180/np.pi)# -np.nanmean(eye_params.sel(ellipse_params = 'theta'))
         phi = np.array((eye_params.sel(ellipse_params = 'phi'))*180/np.pi)# -np.nanmean(eye_params.sel(ellipse_params = 'phi'))
-        if free_move:
-            fm_eye= np.array([np.nanmean(th),np.nanmean(phi),np.nanstd(th),np.nanstd(phi)])
-            np.save(save_dir/'FM_AvgEye_dt{:03d}.npy'.format(int(model_dt*1000)),fm_eye)
+        # if free_move:
+        #     FM_move_avg = np.zeros((2,4))
+        #     FM_move_avg[:,0] = np.array([np.nanmean(th),np.nanstd(th)])
+        #     FM_move_avg[:,1] = np.array([np.nanmean(phi),np.nanstd(phi)])
+        #     FM_move_avg[:,2] = np.array([np.nanmean(groll),np.nanstd(groll)])
+        #     FM_move_avg[:,3] = np.array([np.nanmean(gpitch),np.nanstd(gpitch)])
+        #     np.save(save_dir/'FM_MovAvg_dt{:03d}.npy'.format(int(model_dt*1000)),FM_move_avg)
         print('adjusting camera times to match ephys')
         # adjust eye/world/top times relative to ephys
         ephysT0 = ephys_data.iloc[0,12]
@@ -379,6 +387,7 @@ def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, h
             plt.plot(accTraw,gz_deg,label='gz')
             plt.legend()
             plt.xlim(0,10); plt.xlabel('secs'); plt.ylabel('gyro (deg)')
+            plt.tight_layout()
             diagnostic_pdf.savefig()
             plt.close()
             lag_range = np.arange(-0.2,0.2,0.002)
@@ -568,6 +577,13 @@ def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, h
         start = time.time()
         model_vid_sm, model_nsp, model_t, model_th, model_phi, model_roll, model_pitch, model_active, model_gz = grab_aligned_data(
             goodcells, worldT, accT, img_norm, gz, groll, gpitch, th_interp, phi_interp, free_move=free_move, model_dt=model_dt,do_worldcam_correction=do_worldcam_correction,**kwargs)
+        if free_move:
+            FM_move_avg = np.zeros((2,4))
+            FM_move_avg[:,0] = np.array([np.nanmean(model_th),np.nanstd(model_th)])
+            FM_move_avg[:,1] = np.array([np.nanmean(model_phi),np.nanstd(model_phi)])
+            FM_move_avg[:,2] = np.array([np.nanmean(model_roll),np.nanstd(model_roll)])
+            FM_move_avg[:,3] = np.array([np.nanmean(model_pitch),np.nanstd(model_pitch)])
+            np.save(save_dir/'FM_MovAvg_dt{:03d}.npy'.format(int(model_dt*1000)),FM_move_avg)
         ephys_file = save_dir / 'RawEphysData.h5'
         goodcells.to_hdf(ephys_file,key='goodcells', mode='w')
         data = {'model_vid_sm': model_vid_sm,
@@ -590,7 +606,7 @@ def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, h
         print('Done Loading Unaligned data')
     return data
 
-def load_train_test(file_dict, save_dir, model_dt=.1, frac=.1, train_size=.7, do_shuffle=False, do_norm=False, free_move=True, has_imu=True, has_mouse=False, NKfold=1,**kwargs):
+def load_train_test(file_dict, save_dir, model_dt=.1, frac=.1, train_size=.7, do_shuffle=False, do_norm=False, free_move=True, has_imu=True, has_mouse=False, NKfold=1,thresh_cells=False,**kwargs):
     ##### Load in preprocessed data #####
     data = load_ephys_data_aligned(file_dict, save_dir, model_dt=model_dt, free_move=free_move, has_imu=has_imu, has_mouse=has_mouse,**kwargs)
     if free_move:
@@ -624,23 +640,106 @@ def load_train_test(file_dict, save_dir, model_dt=.1, frac=.1, train_size=.7, do
         train_idx_list.append(train_idx)
         test_idx_list.append(test_idx)
 
-
+    # if thresh_cells:
+        if free_move:
+            if (kwargs['save_dir_hf']/'bad_cells.npy').exists():
+                bad_cells = np.load(kwargs['save_dir_hf']/'bad_cells.npy')
+            else:
+                mean_thresh = np.nanmean(data['model_nsp']/model_dt,axis=0)<1
+                f25,l75=int((data['model_nsp'].shape[0])*.5),int((data['model_nsp'].shape[0])*.5)
+                scaled_fr = (np.nanmean(data['model_nsp'][:f25], axis=0)/np.nanstd(data['model_nsp'][:f25], axis=0) - np.nanmean(data['model_nsp'][l75:], axis=0)/np.nanstd(data['model_nsp'][l75:], axis=0))/model_dt
+                bad_cells = np.where((mean_thresh | (np.abs(scaled_fr)>4)))[0]
+                np.where(mean_thresh), np.where(np.abs(scaled_fr) > 4)
+                np.save(kwargs['save_dir_hf']/'bad_cells.npy',bad_cells)
+        else:
+            bad_cells = np.load(kwargs['save_dir_hf']/'bad_cells.npy')
+        data['model_nsp'] = np.delete(data['model_nsp'],bad_cells,axis=1)
+        data['unit_nums'] = np.delete(data['unit_nums'],bad_cells,axis=0)
+        
     data['model_dth'] = np.diff(data['model_th'],append=0)
     data['model_dphi'] = np.diff(data['model_phi'],append=0)
-    avgfm_eye = np.load(kwargs['save_dir_fm']/'FM_AvgEye_dt{:03d}.npy'.format(int(model_dt*1000)))
-    data['model_th'] = data['model_th'] - avgfm_eye[0]
-    data['model_phi'] = data['model_phi'] - avgfm_eye[1]
+    FM_move_avg = np.load(kwargs['save_dir_fm']/'FM_MovAvg_dt{:03d}.npy'.format(int(model_dt*1000)))
+    data['model_th'] = data['model_th'] - FM_move_avg[0,0]
+    data['model_phi'] = data['model_phi'] - FM_move_avg[0,1]
     data['model_vid_sm'] = (data['model_vid_sm'] - np.mean(data['model_vid_sm'],axis=0))/np.nanstd(data['model_vid_sm'],axis=0)
     data['model_vid_sm'][np.isnan(data['model_vid_sm'])]=0
     if do_norm:
-        data['model_th'] = (data['model_th'])/avgfm_eye[2] # np.nanstd(data['model_th'],axis=0) 
-        data['model_phi'] = (data['model_phi'])/avgfm_eye[3] # np.nanstd(data['model_phi'],axis=0) 
+        data['model_th'] = (data['model_th'])/FM_move_avg[1,0] # np.nanstd(data['model_th'],axis=0) 
+        data['model_phi'] = (data['model_phi'])/FM_move_avg[1,1] # np.nanstd(data['model_phi'],axis=0) 
         if free_move:
-            data['model_roll'] = (data['model_roll'] - np.nanmean(data['model_roll'],axis=0))/np.nanstd(data['model_roll'],axis=0) 
-            data['model_pitch'] = (data['model_pitch'] - np.nanmean(data['model_pitch'],axis=0))/np.nanstd(data['model_pitch'],axis=0) 
-
+            data['model_roll'] = (data['model_roll'] - FM_move_avg[0,2])/FM_move_avg[1,2]
+            data['model_pitch'] = (data['model_pitch'] - FM_move_avg[0,3])/FM_move_avg[1,3]
+        else:
+            # data['model_roll'] = (0 - FM_move_avg[0,2])/FM_move_avg[1,2])
+            data['model_pitch'] = (np.zeros(data['model_phi'].shape) - FM_move_avg[0,3])/FM_move_avg[1,3]
+    else:
+        if free_move:
+            data['model_roll'] = (data['model_roll'] - FM_move_avg[0,2])
+            data['model_pitch'] = (data['model_pitch'] - FM_move_avg[0,3])
+        else:
+            data['model_pitch'] = (np.zeros(data['model_phi'].shape) - FM_move_avg[0,3])
+            ### 0 - fm_pitch/sd_pitch_FM
     return data,train_idx_list,test_idx_list
 
+def load_Kfold_forPlots(params, file_dict={}, Kfold=0, dataset_type='test',thresh_fr = 1, tuning_thresh = .2):
+    params['do_norm']=False
+    data, train_idx_list, test_idx_list = load_train_test(file_dict, **params)
+    train_idx = train_idx_list[Kfold]
+    test_idx = test_idx_list[Kfold]
+    data = load_Kfold_data(data,train_idx,test_idx,params)
+    locals().update(data)
+    locals().update(params)
+
+    if params['free_move']:
+        move_train = np.hstack((data['train_th'][:, np.newaxis], data['train_phi'][:, np.newaxis],data['train_roll'][:, np.newaxis], data['train_pitch'][:, np.newaxis]))
+        move_test = np.hstack((data['test_th'][:, np.newaxis], data['test_phi'][:, np.newaxis],data['test_roll'][:, np.newaxis], data['test_pitch'][:, np.newaxis]))
+        model_move = np.hstack((data['model_th'][:, np.newaxis], data['model_phi'][:, np.newaxis],data['model_roll'][:, np.newaxis], data['model_pitch'][:, np.newaxis]))
+        model_move = (model_move - np.nanmean(model_move,axis=0))
+        move_test = model_move[test_idx]
+        move_train = model_move[train_idx]
+    else:
+        move_train = np.hstack((data['train_th'][:, np.newaxis], data['train_phi'][:, np.newaxis], np.zeros(data['train_phi'].shape)[:, np.newaxis], np.zeros(data['train_phi'].shape)[:, np.newaxis]))
+        move_test = np.hstack((data['test_th'][:, np.newaxis], data['test_phi'][:, np.newaxis], np.zeros(data['test_phi'].shape)[:, np.newaxis], np.zeros(data['test_phi'].shape)[:, np.newaxis]))
+        model_move = np.hstack((data['model_th'][:, np.newaxis], data['model_phi'][:, np.newaxis], np.zeros(data['model_phi'].shape)[:, np.newaxis], np.zeros(data['model_phi'].shape)[:, np.newaxis]))
+    
+    if dataset_type == 'train':
+        nsp_raw = data['train_nsp']
+        move_data = move_train.copy()
+    else: 
+        nsp_raw = data['test_nsp']
+        move_data = move_test.copy()
+        
+    if params['free_move']:
+        spk_percentile2 = np.arange(.125,1.125,.25)
+        quartiles = np.arange(0,1.25,.25)
+        tuning_curves = np.zeros((data['model_nsp'].shape[1],model_move.shape[-1],len(quartiles)-1))
+        tuning_stds = np.zeros((data['model_nsp'].shape[1],model_move.shape[-1],1))
+        tuning_curve_edges = np.zeros((data['model_nsp'].shape[1],model_move.shape[-1],len(quartiles)-1))
+        ax_ylims = np.zeros((data['model_nsp'].shape[-1],model_move.shape[-1]))
+        for i,modeln in enumerate(range(model_move.shape[-1])):
+            for celln in np.arange(data['model_nsp'].shape[1]):
+                metric = move_data[:,modeln]
+                nranges = np.quantile(metric,quartiles)
+                stat_range, edges, _ = binned_statistic(metric,nsp_raw[:,celln],statistic='mean',bins=nranges)
+                stat_std, _, _ = binned_statistic(metric,nsp_raw[:,celln],statistic='std',bins=nranges)
+                tuning_curves[celln,modeln] = stat_range/params['model_dt']
+                edge_mids = np.quantile(metric,spk_percentile2)
+                tuning_curve_edges[celln,modeln] = edge_mids
+                tuning_stds[celln,modeln] = stat_std.max()
+            ax_ylims[:,modeln] = np.nanmax(tuning_curves[:,modeln],axis=-1)
+        tc_mod = (np.max(tuning_curves,axis=-1,keepdims=True)-np.min(tuning_curves,axis=-1,keepdims=True))/(np.max(tuning_curves,axis=-1,keepdims=True)+np.min(tuning_curves,axis=-1,keepdims=True))
+        avg_fr = np.mean(tuning_curves,axis=(-1,-2)).squeeze()
+
+        tuning_sig = tc_mod.copy()
+        tuning_sig[avg_fr<thresh_fr,:,0] = np.nan
+        tuning_sig2 = np.any(tuning_sig>tuning_thresh,axis=1).squeeze()
+        tuning_idx = np.where(tuning_sig2)[0]
+    else: 
+        tuning_curves=tuning_stds=tuning_curve_edges=ax_ylims=tc_mod=avg_fr=tuning_sig=tuning_sig2=tuning_idx = None
+    return data,move_train,move_test,model_move,nsp_raw,move_data,tuning_curves,tuning_stds,tuning_curve_edges,ax_ylims,tc_mod,avg_fr,tuning_sig,tuning_sig2,tuning_idx
+
+
+##### Load in Kfold Data #####
 def load_Kfold_data(data,train_idx,test_idx,params):
     data['train_vid'] = data['model_vid_sm'][train_idx]
     data['test_vid'] = data['model_vid_sm'][test_idx]
@@ -652,8 +751,8 @@ def load_Kfold_data(data,train_idx,test_idx,params):
     data['test_phi'] = data['model_phi'][test_idx]
     data['train_roll'] = data['model_roll'][train_idx] if params['free_move'] else []
     data['test_roll'] = data['model_roll'][test_idx] if params['free_move'] else []
-    data['train_pitch'] = data['model_pitch'][train_idx] if params['free_move'] else []
-    data['test_pitch'] = data['model_pitch'][test_idx] if params['free_move'] else []
+    data['train_pitch'] = data['model_pitch'][train_idx]
+    data['test_pitch'] = data['model_pitch'][test_idx]
     data['train_t'] = data['model_t'][train_idx]
     data['test_t'] = data['model_t'][test_idx]
     data['train_dth'] = data['model_dth'][train_idx]
@@ -663,6 +762,8 @@ def load_Kfold_data(data,train_idx,test_idx,params):
     data['train_gz'] = data['model_gz'][train_idx] if params['free_move'] else []
     data['test_gz'] = data['model_gz'][test_idx] if params['free_move'] else []
     return data
+
+
 def f_add(alpha,stat_range,stat_all):
     return np.mean((stat_range - (stat_all+alpha))**2)
 
@@ -680,7 +781,6 @@ def tuning_curve(model_nsp, var, model_dt = .025, N_bins=10, Nstds=3):
             tuning[n,j] = np.nanmean(model_nsp[usePts,n])/model_dt
             tuning_std[n,j] = (np.nanstd(model_nsp[usePts,n])/model_dt)/ np.sqrt(np.count_nonzero(usePts))
     return tuning, tuning_std, var_range[:-1]
-
 
 def consecutive(data, stepsize=1):
     return np.split(data, np.where(np.diff(data) != stepsize)[0]+1)
