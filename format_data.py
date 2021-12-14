@@ -689,6 +689,9 @@ def load_Kfold_forPlots(params, file_dict={}, Kfold=0, dataset_type='test',thres
     data = load_Kfold_data(data,train_idx,test_idx,params)
     locals().update(data)
     locals().update(params)
+    params['nks'] = np.shape(data['model_vid_sm'])[1:]
+    params['nk'] = params['nks'][0]*params['nks'][1]*params['nt_glm_lag']
+    params['Ncells'] = data['model_nsp'].shape[-1]
 
     if params['free_move']:
         move_train = np.hstack((data['train_th'][:, np.newaxis], data['train_phi'][:, np.newaxis],data['train_roll'][:, np.newaxis], data['train_pitch'][:, np.newaxis]))

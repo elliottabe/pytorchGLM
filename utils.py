@@ -15,8 +15,9 @@ mpl.rcParams.update({'font.size':         24,
                      'ytick.major.width': 2,
                      'axes.spines.right': False,
                      'axes.spines.top':   False,
-                     'font.sans-serif':  "Arial",
-                     'font.family':      "sans-serif",
+                     'font.sans-serif':   "Arial",
+                     'font.family':       "sans-serif",
+                     'pdf.fonttype':      42,
                     })
 
 

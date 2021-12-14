@@ -68,6 +68,8 @@ def get_model(input_size, output_size, meanbias, MovModel, device, l, a, params,
                 else:
                     state_dict[key] = checkpoint['model_state_dict'][key]
         l1.load_state_dict(state_dict)
+    elif params['NoShifter']==True:
+        pass
     else:
         if meanbias is not None:
             state_dict = l1.state_dict()
@@ -135,6 +137,7 @@ def train_model(xtr,xte,xtrm,xtem,shift_in_tr,shift_in_te,ytr,yte,Nepochs,l1,opt
     return vloss_trace, tloss_trace, l1, optimizer, scheduler, Epoch_GLM
 
 def load_GLM_data(data, params, train_idx, test_idx):
+
     if params['free_move']:
         move_train = np.hstack((data['train_th'][:, np.newaxis], data['train_phi'][:, np.newaxis],data['train_roll'][:, np.newaxis], data['train_pitch'][:, np.newaxis]))
         move_test = np.hstack((data['test_th'][:, np.newaxis], data['test_phi'][:, np.newaxis],data['test_roll'][:, np.newaxis], data['test_pitch'][:, np.newaxis]))
@@ -303,7 +306,7 @@ def load_params(MovModel,Kfolds:int,args,debug=False):
         'do_shuffle': args['do_shuffle'],
         'do_norm': args['do_norm'],
         'do_worldcam_correction': False,
-        'lag_list': [0], #np.array([-2, -1, 0, 1, 2]),
+        'lag_list': [-1, 0, 1],
         'free_move': free_move,
         'stim_type': stim_type,
         'base_dir': base_dir,
@@ -370,38 +373,37 @@ if __name__ == '__main__':
             logging_level=logging.ERROR,
         )
     ModRun = [int(i) for i in args['ModRun'].split(',')] #[0,1,2,3,4] #-1,
-    VisNepochs = 2000
     # ModRun = [1]
     for Kfold in np.arange(args['NKfold']):
         for ModelRun in ModRun:
             if ModelRun == -1:
                 args['train_shifter']=True
-                args['Nepochs'] = 2000
+                # args['Nepochs'] = 2000
                 params, file_dict, exp = load_params(1,Kfold,args)
             elif ModelRun == 0:
                 args['train_shifter']=False
-                args['Nepochs']= 5000
+                # args['Nepochs']= 5000
                 params, file_dict, exp = load_params(0,Kfold,args)
             elif ModelRun == 1:
                 args['train_shifter']=False
-                args['Nepochs'] = 5000
+                # args['Nepochs'] = 5000
                 args['NoL1'] = False
                 params, file_dict, exp = load_params(1,Kfold,args)
             elif ModelRun == 2:
                 args['train_shifter']=False
-                args['Nepochs'] = 5000
+                # args['Nepochs'] = 5000
                 args['NoL1'] = False
                 params, file_dict, exp = load_params(2,Kfold,args)
             elif ModelRun == 3:
                 args['train_shifter']=False
-                args['Nepochs'] = 5000
+                # args['Nepochs'] = 5000
                 args['NoL1'] = False
                 params, file_dict, exp = load_params(3,Kfold,args)
             elif ModelRun == 4:
                 args['train_shifter']=False
                 args['free_move']=False
                 args['NoL1'] = False
-                args['Nepochs'] = 5000
+                # args['Nepochs'] = 5000
                 params, file_dict, exp = load_params(1,Kfold,args)
             VisNepochs = args['Nepochs']
             data, train_idx_list, test_idx_list = load_train_test(file_dict, **params)
