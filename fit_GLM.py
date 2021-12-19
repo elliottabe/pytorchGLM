@@ -40,10 +40,11 @@ def arg_parser(jupyter=False):
     parser.add_argument('--do_shuffle', type=str_to_bool, default=False)
     parser.add_argument('--train_shifter', type=str_to_bool, default=False)
     parser.add_argument('--thresh_cells', type=str_to_bool, default=True)
+    parser.add_argument('--SimRF', type=str_to_bool, default=False)
     parser.add_argument('--NKfold', type=int, default=1)
     parser.add_argument('--ModRun', type=str,default='0,1,2,3,4')
     parser.add_argument('--shiftn', type=int, default=12)
-    parser.add_argument('--Nepochs', type=int, default=5000)
+    parser.add_argument('--Nepochs', type=int, default=10000)
     if jupyter:
         args = parser.parse_args('')
     else:
@@ -51,13 +52,13 @@ def arg_parser(jupyter=False):
     return vars(args)
 
 
-def get_model(input_size, output_size, meanbias, MovModel, device, l, a, params, NepochVis=5000, best_shifter_Nepochs=2000, Kfold=0, **kwargs):
+def get_model(input_size, output_size, meanbias, MovModel, device, l, a, params, NepochVis=10000, best_shifter_Nepochs=2000, Kfold=0, **kwargs):
 
     l1 = LinVisNetwork(input_size,output_size,
                         reg_alph=params['alphas'][a],reg_alphm=params['alphas_m'][a],move_features=params['move_features'],
                         train_shifter=params['train_shifter'], shift_hidden=50,
                         LinMix=params['LinMix'], device=device,).to(device)
-    if (params['train_shifter']==False) & (params['MovModel']!=0) & (params['NoShifter']==False):
+    if (params['train_shifter']==False) & (params['MovModel']!=0) & (params['NoShifter']==False) & (params['SimRF']==False):
         state_dict = l1.state_dict()
         best_shift = 'GLM_{}_dt{:03d}_T{:02d}_MovModel{:d}_NB{}_Kfold{:01d}.pth'.format('Pytorch_BestShift',int(params['model_dt']*1000), 1, 1, best_shifter_Nepochs, Kfold)
         checkpoint = torch.load(params['save_dir']/best_shift)
@@ -68,8 +69,14 @@ def get_model(input_size, output_size, meanbias, MovModel, device, l, a, params,
                 else:
                     state_dict[key] = checkpoint['model_state_dict'][key]
         l1.load_state_dict(state_dict)
-    elif params['NoShifter']==True:
+    elif (params['NoShifter']==True) :
         pass
+    elif (params['SimRF']==True):
+        SimRF_file = params['save_dir'].parent.parent.parent/'121521/SimRF/fm1/SimRF_withL1_dt050_T01_Model1_NB10000_Kfold00_best.h5'
+        SimRF_data = ioh5.load(SimRF_file)
+        l1.Cell_NN[0].weight.data = torch.from_numpy(SimRF_data['sta'].astype(np.float32).T).to(device)
+        l1.Cell_NN[0].bias.data = torch.from_numpy(SimRF_data['bias_sim'].astype(np.float32)).to(device)
+        # pass
     else:
         if meanbias is not None:
             state_dict = l1.state_dict()
@@ -186,7 +193,8 @@ def load_GLM_data(data, params, train_idx, test_idx):
         shift_in_te = None
         ytr = torch.from_numpy(data['train_nsp'].astype(np.float32)).to(device)
         yte = torch.from_numpy(data['test_nsp'].astype(np.float32)).to(device)
-            
+
+
     if params['MovModel'] == 0:
         model_type = 'Pytorch_Mot'
     elif params['MovModel'] == 1:
@@ -210,10 +218,21 @@ def load_GLM_data(data, params, train_idx, test_idx):
     else:
         model_type = model_type + '_withL1'
     
-
+    if params['SimRF']:
+        SimRF_file = params['save_dir'].parent.parent.parent/'121521/SimRF/fm1/SimRF_withL1_dt050_T01_Model1_NB10000_Kfold00_best.h5'
+        SimRF_data = ioh5.load(SimRF_file)
+        model_type = model_type + '_SimRF'
+        ytr = torch.from_numpy(SimRF_data['ytr'].astype(np.float32)).to(device)
+        yte = torch.from_numpy(SimRF_data['yte'].astype(np.float32)).to(device)
+        params['save_model'] = params['save_model'] / 'SimRF'
+        params['save_model'].mkdir(parents=True, exist_ok=True)
+        meanbias = torch.from_numpy(SimRF_data['bias_sim'].astype(np.float32)).to(device)
+    else:
+        meanbias = torch.mean(torch.tensor(data['model_nsp'], dtype=torch.float32), axis=0)
     input_size = params['nk']
     output_size = ytr.shape[1]
-
+    params['lr_shift'] = [1e-3,1e-2]
+    params['Ncells'] = ytr.shape[-1]
     # Reshape data (video) into (T*n)xN array
     if params['MovModel'] == 0:
         mx_train = move_train.copy()
@@ -265,13 +284,9 @@ def load_GLM_data(data, params, train_idx, test_idx):
         params['lr_m'] = [1e-6, 1e-3]
         params['lr_b'] = [1e-6, 1e-3]
 
-    params['lr_shift'] = [1e-3,1e-2]
-    meanbias = torch.mean(torch.tensor(data['model_nsp'], dtype=torch.float32), axis=0)
-    params['Ncells'] = ytr.shape[-1]
-
     return params, xtr, xtrm, xte, xtem, ytr, yte, shift_in_tr, shift_in_te, input_size, output_size, model_type, meanbias, model_move
 
-def load_params(MovModel,Kfolds:int,args,debug=False):
+def load_params(MovModel,Kfolds:int,args,file_dict=None,debug=False):
 
     ##### '070921/J553RT' '102621/J558NC' '110421/J569LT' #####
     free_move = args['free_move']
@@ -306,7 +321,7 @@ def load_params(MovModel,Kfolds:int,args,debug=False):
         'do_shuffle': args['do_shuffle'],
         'do_norm': args['do_norm'],
         'do_worldcam_correction': False,
-        'lag_list': [-1, 0, 1],
+        'lag_list': [-2,-1,0,1,2],
         'free_move': free_move,
         'stim_type': stim_type,
         'base_dir': base_dir,
@@ -324,6 +339,7 @@ def load_params(MovModel,Kfolds:int,args,debug=False):
         'LinMix': True if MovModel==2 else False,
         'NKfold': args['NKfold'],
         'NoL1': args['NoL1'],
+        'SimRF': args['SimRF'],
         'date_ani2': date_ani2,
         'bin_length': 40,
         'NoShifter': args['NoShifter'],
@@ -337,21 +353,22 @@ def load_params(MovModel,Kfolds:int,args,debug=False):
     else:
         params['WC_type'] = 'UC'
 
-    file_dict = {'cell': 0,
-                'drop_slow_frames': True,
-                'ephys': list(data_dir.glob('*ephys_merge.json'))[0].as_posix(),
-                'ephys_bin': list(data_dir.glob('*Ephys.bin'))[0].as_posix(),
-                'eye': list(data_dir.glob('*REYE.nc'))[0].as_posix(),
-                'imu': list(data_dir.glob('*imu.nc'))[0].as_posix() if stim_type == fm_dir else None,
-                'mapping_json': Path('~/Research/Github/FreelyMovingEphys/probes/channel_maps.json').expanduser(),
-                'mp4': True,
-                'name': date_ani2 + '_control_Rig2_' + stim_type,  # 070921_J553RT
-                'probe_name': 'DB_P128-6',
-                'save': data_dir.as_posix(),
-                'speed': list(data_dir.glob('*speed.nc'))[0].as_posix() if stim_type == 'hf1_wn' else None,
-                'stim_type': 'light',
-                'top': list(data_dir.glob('*TOP1.nc'))[0].as_posix() if stim_type == fm_dir else None,
-                'world': list(data_dir.glob('*world.nc'))[0].as_posix(), }
+    if file_dict is None:
+        file_dict = {'cell': 0,
+                    'drop_slow_frames': True,
+                    'ephys': list(data_dir.glob('*ephys_merge.json'))[0].as_posix(),
+                    'ephys_bin': list(data_dir.glob('*Ephys.bin'))[0].as_posix(),
+                    'eye': list(data_dir.glob('*REYE.nc'))[0].as_posix(),
+                    'imu': list(data_dir.glob('*imu.nc'))[0].as_posix() if stim_type == fm_dir else None,
+                    'mapping_json': Path('~/Research/Github/FreelyMovingEphys/probes/channel_maps.json').expanduser(),
+                    'mp4': True,
+                    'name': date_ani2 + '_control_Rig2_' + stim_type,  # 070921_J553RT
+                    'probe_name': 'DB_P128-6',
+                    'save': data_dir.as_posix(),
+                    'speed': list(data_dir.glob('*speed.nc'))[0].as_posix() if stim_type == 'hf1_wn' else None,
+                    'stim_type': 'light',
+                    'top': list(data_dir.glob('*TOP1.nc'))[0].as_posix() if stim_type == fm_dir else None,
+                    'world': list(data_dir.glob('*world.nc'))[0].as_posix(), }
     if debug==False:
         params2=params.copy()
         for key in params2.keys():
@@ -387,8 +404,8 @@ if __name__ == '__main__':
             elif ModelRun == 1:
                 args['train_shifter']=False
                 # args['Nepochs'] = 5000
-                args['NoL1'] = False
-                params, file_dict, exp = load_params(1,Kfold,args)
+                # args['NoL1'] = False
+                params, file_dict, exp = load_params(1,Kfold,args,file_dict={})
             elif ModelRun == 2:
                 args['train_shifter']=False
                 # args['Nepochs'] = 5000
