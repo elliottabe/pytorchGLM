@@ -13,11 +13,10 @@ import torch.optim as optim
 from test_tube import Experiment
 from tqdm.auto import tqdm
 
-sys.path.append(str(Path('.').absolute()))
-import io_dict_to_hdf5 as ioh5
-from format_data import *
-from models import *
-from utils import *
+from NLMixedUtils.utils import *
+import NLMixedUtils.io_dict_to_hdf5 as ioh5
+from NLMixedUtils.format_data import *
+from NLMixedUtils.models import *
 
 torch.backends.cudnn.benchmark = True
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

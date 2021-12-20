@@ -28,10 +28,8 @@ from sklearn.utils import shuffle
 from scipy.signal import medfilt
 from scipy.stats import binned_statistic
 
-sys.path.append(str(Path('.').absolute().parent))
-sys.path.append(str(Path('.').absolute()))
-from utils import *
-import io_dict_to_hdf5 as ioh5
+from NLMixedUtils.utils import *
+import NLMixedUtils.io_dict_to_hdf5 as ioh5
 
 # ProgressBar
 @ray.remote
@@ -792,7 +790,7 @@ def consecutive(data, stepsize=1):
 if __name__ == '__main__':
 
     sys.path.append(str(Path('.').absolute().parent))
-    from utils import *
+    from NLMixedUtils import *
     import io_dict_to_hdf5 as ioh5
     from format_data import load_ephys_data_aligned
 
