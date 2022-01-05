@@ -145,26 +145,25 @@ def train_model(xtr,xte,xtrm,xtem,shift_in_tr,shift_in_te,ytr,yte,Nepochs,l1,opt
 def load_GLM_data(data, params, train_idx, test_idx):
 
     if params['free_move']:
-        move_train = np.hstack((data['train_th'][:, np.newaxis], data['train_phi'][:, np.newaxis],data['train_roll'][:, np.newaxis], data['train_pitch'][:, np.newaxis]))
-        move_test = np.hstack((data['test_th'][:, np.newaxis], data['test_phi'][:, np.newaxis],data['test_roll'][:, np.newaxis], data['test_pitch'][:, np.newaxis]))
-        model_move = np.hstack((data['model_th'][:, np.newaxis], data['model_phi'][:, np.newaxis],data['model_roll'][:, np.newaxis], data['model_pitch'][:, np.newaxis]))
+        move_train = np.hstack((data['train_th'][:, np.newaxis], data['train_phi'][:, np.newaxis], data['train_pitch'][:, np.newaxis],data['train_roll'][:, np.newaxis]))
+        move_test = np.hstack((data['test_th'][:, np.newaxis], data['test_phi'][:, np.newaxis], data['test_pitch'][:, np.newaxis],data['test_roll'][:, np.newaxis]))
+        model_move = np.hstack((data['model_th'][:, np.newaxis], data['model_phi'][:, np.newaxis], data['model_pitch'][:, np.newaxis],data['model_roll'][:, np.newaxis]))
     else:
-        move_train = np.hstack((data['train_th'][:, np.newaxis], data['train_phi'][:, np.newaxis], np.zeros(data['train_phi'].shape)[:, np.newaxis], data['train_pitch'][:, np.newaxis]))
-        move_test = np.hstack((data['test_th'][:, np.newaxis], data['test_phi'][:, np.newaxis], np.zeros(data['test_phi'].shape)[:, np.newaxis], data['test_pitch'][:, np.newaxis]))
-        model_move = np.hstack((data['model_th'][:, np.newaxis], data['model_phi'][:, np.newaxis], np.zeros(data['model_phi'].shape)[:, np.newaxis], data['model_pitch'][:, np.newaxis]))
+        move_train = np.hstack((data['train_th'][:, np.newaxis], data['train_phi'][:, np.newaxis], data['train_pitch'][:, np.newaxis], np.zeros(data['train_phi'].shape)[:, np.newaxis]))
+        move_test = np.hstack((data['test_th'][:, np.newaxis], data['test_phi'][:, np.newaxis], data['test_pitch'][:, np.newaxis], np.zeros(data['test_phi'].shape)[:, np.newaxis]))
+        model_move = np.hstack((data['model_th'][:, np.newaxis], data['model_phi'][:, np.newaxis], data['model_pitch'][:, np.newaxis], np.zeros(data['model_phi'].shape)[:, np.newaxis]))
 
     ##### Save dimension #####    
     params['nks'] = np.shape(data['train_vid'])[1:]
     params['nk'] = params['nks'][0]*params['nks'][1]*params['nt_glm_lag']
-    ncells = data['model_nsp'].shape[-1]
     # Reshape data (video) into (T*n)xN array
     if params['train_shifter']:
         rolled_vid = np.hstack([np.roll(data['model_vid_sm'], nframes, axis=0) for nframes in params['lag_list']])
         move_quantiles = np.quantile(model_move,params['quantiles'],axis=0)
         train_range = np.all(((move_train>move_quantiles[0]) & (move_train<move_quantiles[1])),axis=1)
         test_range = np.all(((move_test>move_quantiles[0]) & (move_test<move_quantiles[1])),axis=1)
-        x_train = rolled_vid[train_idx].reshape((len(train_idx), 1)+params['nks']).astype(np.float32)[train_range]
-        x_test = rolled_vid[test_idx].reshape((len(test_idx), 1)+params['nks']).astype(np.float32)[test_range]
+        x_train = rolled_vid[train_idx].reshape((len(train_idx), params['nt_glm_lag'])+params['nks']).astype(np.float32)[train_range]
+        x_test = rolled_vid[test_idx].reshape((len(test_idx), params['nt_glm_lag'])+params['nks']).astype(np.float32)[test_range]
         move_train = move_train[train_range]
         move_test = move_test[test_range]
         shift_in_tr = torch.from_numpy(move_train[:, (0, 1, 3)].astype(np.float32)).to(device)
@@ -242,9 +241,9 @@ def load_GLM_data(data, params, train_idx, test_idx):
         xtem = None
         params['nk'] = xtr.shape[-1]
         params['move_features'] = None 
-        params['lambdas'] = np.array([None])
+        params['lambdas'] = np.hstack((0, np.logspace(-2, 3, 20)))
         params['alphas'] = np.array([None])
-        params['lambdas_m'] = np.array([None]) 
+        params['lambdas_m'] = np.hstack((0, np.logspace(-2, 3, 20)))
         params['alphas_m'] = np.array([None]) 
         params['nlam'] = len(params['lambdas'])
         params['nalph'] = len(params['alphas'])
@@ -392,30 +391,32 @@ if __name__ == '__main__':
     # ModRun = [1]
     for Kfold in np.arange(args['NKfold']):
         for ModelRun in ModRun:
-            if ModelRun == -1:
+            if ModelRun == -1: # train shifter
                 args['train_shifter']=True
-                # args['Nepochs'] = 2000
+                args['Nepochs'] = 2000
                 params, file_dict, exp = load_params(1,Kfold,args)
-            elif ModelRun == 0:
+                params['lag_list'] = [0]
+                params['nt_glm_lag']=len(params['lag_list'])
+            elif ModelRun == 0: # pos only
                 args['train_shifter']=False
                 # args['Nepochs']= 5000
                 params, file_dict, exp = load_params(0,Kfold,args)
-            elif ModelRun == 1:
+            elif ModelRun == 1: # vis only
                 args['train_shifter']=False
                 # args['Nepochs'] = 5000
                 # args['NoL1'] = False
                 params, file_dict, exp = load_params(1,Kfold,args,file_dict={})
-            elif ModelRun == 2:
+            elif ModelRun == 2: # add fit
                 args['train_shifter']=False
                 # args['Nepochs'] = 5000
                 args['NoL1'] = False
                 params, file_dict, exp = load_params(2,Kfold,args)
-            elif ModelRun == 3:
+            elif ModelRun == 3: # mul. fit
                 args['train_shifter']=False
                 # args['Nepochs'] = 5000
                 args['NoL1'] = False
                 params, file_dict, exp = load_params(3,Kfold,args)
-            elif ModelRun == 4:
+            elif ModelRun == 4: # head-fixed
                 args['train_shifter']=False
                 args['free_move']=False
                 args['NoL1'] = False
@@ -583,6 +584,8 @@ if __name__ == '__main__':
                 args['train_shifter']=True
                 args['Nepochs'] = 2000
                 params, file_dict, exp = load_params(1,Kfold,args)
+                params['lag_list'] = [0]
+                params['nt_glm_lag']=len(params['lag_list'])
                 VisNepochs = args['Nepochs']
                 data, train_idx_list, test_idx_list = load_train_test(file_dict, **params)
                 train_idx = train_idx_list[Kfold]

@@ -334,13 +334,7 @@ def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, h
         # define theta, phi and zero-center
         th = np.array((eye_params.sel(ellipse_params = 'theta'))*180/np.pi)# -np.nanmean(eye_params.sel(ellipse_params = 'theta'))
         phi = np.array((eye_params.sel(ellipse_params = 'phi'))*180/np.pi)# -np.nanmean(eye_params.sel(ellipse_params = 'phi'))
-        # if free_move:
-        #     FM_move_avg = np.zeros((2,4))
-        #     FM_move_avg[:,0] = np.array([np.nanmean(th),np.nanstd(th)])
-        #     FM_move_avg[:,1] = np.array([np.nanmean(phi),np.nanstd(phi)])
-        #     FM_move_avg[:,2] = np.array([np.nanmean(groll),np.nanstd(groll)])
-        #     FM_move_avg[:,3] = np.array([np.nanmean(gpitch),np.nanstd(gpitch)])
-        #     np.save(save_dir/'FM_MovAvg_dt{:03d}.npy'.format(int(model_dt*1000)),FM_move_avg)
+
         print('adjusting camera times to match ephys')
         # adjust eye/world/top times relative to ephys
         ephysT0 = ephys_data.iloc[0,12]
@@ -692,9 +686,9 @@ def load_Kfold_forPlots(params, file_dict={}, Kfold=0, dataset_type='test',thres
     params['Ncells'] = data['model_nsp'].shape[-1]
 
     if params['free_move']:
-        move_train = np.hstack((data['train_th'][:, np.newaxis], data['train_phi'][:, np.newaxis],data['train_roll'][:, np.newaxis], data['train_pitch'][:, np.newaxis]))
-        move_test = np.hstack((data['test_th'][:, np.newaxis], data['test_phi'][:, np.newaxis],data['test_roll'][:, np.newaxis], data['test_pitch'][:, np.newaxis]))
-        model_move = np.hstack((data['model_th'][:, np.newaxis], data['model_phi'][:, np.newaxis],data['model_roll'][:, np.newaxis], data['model_pitch'][:, np.newaxis]))
+        move_train = np.hstack((data['train_th'][:, np.newaxis], data['train_phi'][:, np.newaxis], data['train_pitch'][:, np.newaxis],data['train_roll'][:, np.newaxis]))
+        move_test = np.hstack((data['test_th'][:, np.newaxis], data['test_phi'][:, np.newaxis], data['test_pitch'][:, np.newaxis],data['test_roll'][:, np.newaxis]))
+        model_move = np.hstack((data['model_th'][:, np.newaxis], data['model_phi'][:, np.newaxis], data['model_pitch'][:, np.newaxis],data['model_roll'][:, np.newaxis]))
         model_move = (model_move - np.nanmean(model_move,axis=0))
         move_test = model_move[test_idx]
         move_train = model_move[train_idx]
