@@ -202,12 +202,13 @@ def grab_aligned_data(goodcells, worldT, accT, img_norm, gz, groll, gpitch, th_i
     gc.collect()
     return model_vid_sm, model_nsp, model_t, model_th, model_phi, model_roll, model_pitch, model_active, model_gz
 
-def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, has_mouse=False, max_frames=60*60, model_dt=.025, do_worldcam_correction=False, reprocess=False, medfiltbins=11, **kwargs):
+def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, has_mouse=False, max_frames=60*60, model_dt=.025, downsamp_vid = .25, do_worldcam_correction=False, reprocess=False, medfiltbins=11, **kwargs):
         
     ##### Align Data #####
     if do_worldcam_correction:
         model_file = (save_dir / 'ModelData_dt{:03d}.h5'.format(int(model_dt*1000)))
     else: 
+        # model_file = save_dir / 'ModelData_dt{:03d}_rawWorldCam_{:d}ds.h5'.format(int(model_dt*1000),int(downsamp_vid*100))
         model_file = save_dir / 'ModelData_dt{:03d}_rawWorldCam.h5'.format(int(model_dt*1000))
     if (model_file.exists()) & (reprocess==False):
         data = ioh5.load(model_file)
@@ -553,10 +554,10 @@ def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, h
         print('Calculating Image Norm')
         start = time.time()
         sz = np.shape(world_vid)
-        downsamp = 0.25
-        world_vid_sm = np.zeros((sz[0],int(sz[1]*downsamp),int(sz[2]*downsamp)))
+        # downsamp = .5 #0.25
+        world_vid_sm = np.zeros((sz[0],int(sz[1]*downsamp_vid),int(sz[2]*downsamp_vid)))
         for f in range(sz[0]):
-            world_vid_sm[f,:,:] = cv2.resize(world_vid[f,:,:],(int(sz[2]*downsamp),int(sz[1]*downsamp)))
+            world_vid_sm[f,:,:] = cv2.resize(world_vid[f,:,:],(int(sz[2]*downsamp_vid),int(sz[1]*downsamp_vid)))
         std_im = np.std(world_vid_sm, axis=0, dtype=float)
         img_norm = ((world_vid_sm-np.mean(world_vid_sm,axis=0,dtype=float))/std_im).astype(float)
         std_im[std_im<20] = 0
@@ -633,6 +634,7 @@ def load_train_test(file_dict, save_dir, model_dt=.1, frac=.1, train_size=.7, do
         test_idx_list.append(test_idx)
 
     # if thresh_cells:
+        print('Tot_units: {}'.format(data['unit_nums'].shape))
         if free_move:
             if (kwargs['save_dir_hf']/'bad_cells.npy').exists():
                 bad_cells = np.load(kwargs['save_dir_hf']/'bad_cells.npy')
@@ -641,7 +643,6 @@ def load_train_test(file_dict, save_dir, model_dt=.1, frac=.1, train_size=.7, do
                 f25,l75=int((data['model_nsp'].shape[0])*.5),int((data['model_nsp'].shape[0])*.5)
                 scaled_fr = (np.nanmean(data['model_nsp'][:f25], axis=0)/np.nanstd(data['model_nsp'][:f25], axis=0) - np.nanmean(data['model_nsp'][l75:], axis=0)/np.nanstd(data['model_nsp'][l75:], axis=0))/model_dt
                 bad_cells = np.where((mean_thresh | (np.abs(scaled_fr)>4)))[0]
-                np.where(mean_thresh), np.where(np.abs(scaled_fr) > 4)
                 np.save(kwargs['save_dir_hf']/'bad_cells.npy',bad_cells)
         else:
             bad_cells = np.load(kwargs['save_dir_hf']/'bad_cells.npy')
@@ -652,7 +653,7 @@ def load_train_test(file_dict, save_dir, model_dt=.1, frac=.1, train_size=.7, do
     data['model_dphi'] = np.diff(data['model_phi'],append=0)
     FM_move_avg = np.load(kwargs['save_dir_fm']/'FM_MovAvg_dt{:03d}.npy'.format(int(model_dt*1000)))
     data['model_th'] = data['model_th'] - FM_move_avg[0,0]
-    data['model_phi'] = data['model_phi'] - FM_move_avg[0,1]
+    data['model_phi'] = (data['model_phi'] - FM_move_avg[0,1])
     data['model_vid_sm'] = (data['model_vid_sm'] - np.mean(data['model_vid_sm'],axis=0))/np.nanstd(data['model_vid_sm'],axis=0)
     data['model_vid_sm'][np.isnan(data['model_vid_sm'])]=0
     if do_norm:
@@ -781,48 +782,73 @@ def consecutive(data, stepsize=1):
     return np.split(data, np.where(np.diff(data) != stepsize)[0]+1)
 
 
+def arg_parser():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--free_move', type=str_to_bool, default=True)
+    parser.add_argument('--prey_cap', type=str_to_bool, default=False)
+    parser.add_argument('--date_ani', type=str, default='102821/J570LT')#'070921/J553RT')
+    parser.add_argument('--save_dir', type=str, default='~/Research/SensoryMotorPred_Data/data/')
+    parser.add_argument('--fig_dir', type=str, default='~/Research/SensoryMotorPred_Data/Figures')
+    parser.add_argument('--data_dir', type=str, default='~/Goeppert/freely_moving_ephys/ephys_recordings/')
+    args = parser.parse_args()
+    return vars(args)
+
 if __name__ == '__main__':
-
-    sys.path.append(str(Path('.').absolute().parent))
-    from NLMixedUtils import *
-    import io_dict_to_hdf5 as ioh5
-    from format_data import load_ephys_data_aligned
-
-    pd.set_option('display.max_rows', None)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--free_move', type=str_to_bool, default=True)
+    parser.add_argument('--prey_cap', type=str_to_bool, default=False)
+    parser.add_argument('--date_ani', type=str, default='102821/J570LT')#'070921/J553RT')
+    parser.add_argument('--save_dir', type=str, default='~/Research/SensoryMotorPred_Data/data/')
+    parser.add_argument('--fig_dir', type=str, default='~/Research/SensoryMotorPred_Data/Figures')
+    parser.add_argument('--data_dir', type=str, default='~/Goeppert/freely_moving_ephys/ephys_recordings/')
+    args = parser.parse_args()
+    args = vars(args)
+    # pd.set_option('display.max_rows', None)
     FigPath = check_path(Path('~/Research/SensoryMotorPred_Data').expanduser(),'Figures/Encoding')
 
-    ray.init(
-        ignore_reinit_error=True,
-        logging_level=logging.ERROR,
-    )
+    # ray.init(
+    #     ignore_reinit_error=True,
+    #     logging_level=logging.ERROR,
+    # )
+
     model_dt=.05
-    free_move = False
+    downsamp_vid = .5
+    free_move = True
+    prey_cap=False
+    fm_dir = 'fm1' if prey_cap==False else 'fm1_prey'
     if free_move:
-        stim_type = 'fm1'
+        stim_type = fm_dir
     else:
-        stim_type = 'hf1_wn' # 'fm1' # 
-    date_ani = '070921/J553RT'  # '062921/G6HCK1ALTRN'
-    data_dir  = Path('~/Goeppert/freely_moving_ephys/ephys_recordings/').expanduser() / date_ani / stim_type
-    save_dir  = check_path(Path('~/Research/SensoryMotorPred_Data/data/').expanduser() / date_ani, stim_type)
-    FigPath = check_path(Path('~/Research/SensoryMotorPred_Data').expanduser(),'Figures/Encoding')
+        stim_type = 'hf1_wn'    
+    dates_all = ['070921/J553RT' ,'101521/J559NC','102821/J570LT','110421/J569LT'] # '102621/J558NC' '062921/G6HCK1ALTRN',
+    date_ani = args['date_ani']
+    date_ani2 = '_'.join(date_ani.split('/'))
+    data_dir = Path(args['data_dir']).expanduser() / date_ani / stim_type 
+    save_dir = (Path(args['save_dir']).expanduser() / date_ani / stim_type)
+    base_dir = (Path(args['save_dir']).expanduser() / date_ani)
+    save_dir.mkdir(parents=True, exist_ok=True)
+    save_dir_fm = save_dir.parent / fm_dir
+    save_dir_hf = save_dir.parent / 'hf1_wn'
+    save_dir_fm.mkdir(parents=True, exist_ok=True)
+    save_dir_hf.mkdir(parents=True, exist_ok=True)
+    fig_dir = (Path(args['fig_dir']).expanduser()/'Encoding'/date_ani/stim_type)
+    fig_dir.mkdir(parents=True, exist_ok=True)
 
-    FigPath = check_path(FigPath, stim_type)
-    save_dir,data_dir,FigPath
     file_dict = {'cell': 0,
                 'drop_slow_frames': True,
                 'ephys': list(data_dir.glob('*ephys_merge.json'))[0].as_posix(),
                 'ephys_bin': list(data_dir.glob('*Ephys.bin'))[0].as_posix(),
                 'eye': list(data_dir.glob('*REYE.nc'))[0].as_posix(),
-                'imu': list(data_dir.glob('*imu.nc'))[0].as_posix() if stim_type=='fm1' else None,
-                'mapping_json': '/home/seuss/Research/Github/FreelyMovingEphys/probes/channel_maps.json',
+                'imu': list(data_dir.glob('*imu.nc'))[0].as_posix() if stim_type == fm_dir else None,
+                'mapping_json': Path('~/Research/Github/FreelyMovingEphys/probes/channel_maps.json').expanduser(),
                 'mp4': True,
-                 'name': '070921_J553RT_control_Rig2_'+stim_type,  # 070921_J553RT
+                'name': date_ani2 + '_control_Rig2_' + stim_type,  # 070921_J553RT
                 'probe_name': 'DB_P128-6',
                 'save': data_dir.as_posix(),
-                'speed': list(data_dir.glob('*speed.nc'))[0].as_posix() if stim_type=='hf1_wn' else None,
+                'speed': list(data_dir.glob('*speed.nc'))[0].as_posix() if stim_type == 'hf1_wn' else None,
                 'stim_type': 'light',
-                'top': list(data_dir.glob('*TOP1.nc'))[0].as_posix() if stim_type=='fm1' else None,
-                'world': list(data_dir.glob('*world.nc'))[0].as_posix(),}
+                'top': list(data_dir.glob('*TOP1.nc'))[0].as_posix() if stim_type == fm_dir else None,
+                'world': list(data_dir.glob('*world.nc'))[0].as_posix(), }
 
-    data = load_ephys_data_aligned(file_dict, save_dir, model_dt=model_dt, free_move=free_move, has_imu=True, has_mouse=False,)
-    ray.shutdown()
+    data = load_ephys_data_aligned(file_dict, save_dir, model_dt=model_dt, free_move=free_move, has_imu=True, has_mouse=False, downsamp_vid=downsamp_vid)
+    # ray.shutdown()

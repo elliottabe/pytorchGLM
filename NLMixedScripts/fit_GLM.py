@@ -29,7 +29,7 @@ def arg_parser(jupyter=False):
     parser.add_argument('--date_ani', type=str, default='102821/J570LT')#'070921/J553RT')
     parser.add_argument('--save_dir', type=str, default='~/Research/SensoryMotorPred_Data/data/')
     parser.add_argument('--fig_dir', type=str, default='~/Research/SensoryMotorPred_Data/Figures')
-    parser.add_argument('--data_dir', type=str, default='~/Goeppert/freely_moving_ephys/ephys_recordings/')
+    parser.add_argument('--data_dir', type=str, default='~/Goeppert/nlab-nas/freely_moving_ephys/ephys_recordings/')
     parser.add_argument('--MovModel', type=int, default=1)
     parser.add_argument('--load_ray', type=str_to_bool, default=False)
     parser.add_argument('--LinMix', type=str_to_bool, default=False)
@@ -106,7 +106,7 @@ def get_model(input_size, output_size, meanbias, MovModel, device, l, a, params,
         optimizer = optim.Adam(params=[{'params': [param for name, param in l1.posNN.named_parameters() if 'weight' in name],'lr':params['lr_m'][1]},
                                        {'params': [param for name, param in l1.posNN.named_parameters() if 'bias' in name],'lr':params['lr_b'][1]},])
     
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=int(params['Nepochs']/4))
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=int(params['Nepochs']/5))
     # scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=.9999)
     # scheduler = None
     return l1, optimizer, scheduler
@@ -343,6 +343,7 @@ def load_params(MovModel,Kfolds:int,args,file_dict=None,debug=False):
         'NoShifter': args['NoShifter'],
         'quantiles': [.05,.95],
         'thresh_cells': args['thresh_cells'],
+        'downsamp_vid':.25,
     }
 
     params['nt_glm_lag']=len(params['lag_list'])
@@ -367,6 +368,7 @@ def load_params(MovModel,Kfolds:int,args,file_dict=None,debug=False):
                     'stim_type': 'light',
                     'top': list(data_dir.glob('*TOP1.nc'))[0].as_posix() if stim_type == fm_dir else None,
                     'world': list(data_dir.glob('*world.nc'))[0].as_posix(), }
+        # file_dict = {}
     if debug==False:
         params2=params.copy()
         for key in params2.keys():
@@ -471,8 +473,8 @@ if __name__ == '__main__':
                     GLM_CV['pred_cv'][a, l] = pred.detach().cpu().numpy().squeeze().T
                     out = l1(xtr, xtrm, shift_in_tr)
                     GLM_CV['out_cv'][a, l] = out.detach().cpu().numpy().squeeze().T
-
-                    sp_smooth = np.apply_along_axis(lambda m: np.convolve(m, np.ones(params['bin_length']), mode='same')/(params['bin_length'] * params['model_dt']), axis=0, arr=data['test_nsp'])[params['bin_length']:-params['bin_length']]
+                    test_nsp = yte.cpu().detach().numpy()
+                    sp_smooth = np.apply_along_axis(lambda m: np.convolve(m, np.ones(params['bin_length']), mode='same')/(params['bin_length'] * params['model_dt']), axis=0, arr=test_nsp)[params['bin_length']:-params['bin_length']]
                     pred_smooth = np.apply_along_axis(lambda m: np.convolve(m, np.ones(params['bin_length']), mode='same')/(params['bin_length'] * params['model_dt']), axis=1, arr=GLM_CV['pred_cv'][a, l])[:,params['bin_length']:-params['bin_length']].T
                     GLM_CV['r2_test'][a,l] = np.array([(np.corrcoef(sp_smooth[:,celln],pred_smooth[:,celln])[0, 1])**2 for celln in range(params['Ncells'])])
                     

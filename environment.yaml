@@ -19,4 +19,5 @@ dependencies:
     - opencv-python
     - ray[default]
     - sklearn
+    - test_tube
 prefix: /home/eabe/anaconda3/envs/pytorchGLM

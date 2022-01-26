@@ -18,6 +18,8 @@ mpl.rcParams.update({'font.size':         24,
                      'font.sans-serif':   "Arial",
                      'font.family':       "sans-serif",
                      'pdf.fonttype':      42,
+                     'xtick.labelsize': 22,
+                     'ytick.labelsize': 22,
                     })
 
 
