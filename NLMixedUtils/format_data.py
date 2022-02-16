@@ -30,7 +30,7 @@ from scipy.stats import binned_statistic
 
 from NLMixedUtils.utils import *
 import NLMixedUtils.io_dict_to_hdf5 as ioh5
-
+from NLMixedScripts.fit_GLM import *
 # ProgressBar
 @ray.remote
 class ProgressBarActor:
@@ -144,8 +144,7 @@ def shift_world_pt2(f, dt, world_vid, thInterp, phiInterp, ycorrection, xcorrect
 
 
 def grab_aligned_data(goodcells, worldT, accT, img_norm, gz, groll, gpitch, th_interp, phi_interp, free_move=True, model_dt=0.05,pxcrop=5,do_worldcam_correction=True,**kwargs):
-    # get number of good units
-    n_units = len(goodcells)
+
     # simplified setup for GLM
     # these are general parameters (spike rates, eye position)
     n_units = len(goodcells)
@@ -202,14 +201,15 @@ def grab_aligned_data(goodcells, worldT, accT, img_norm, gz, groll, gpitch, th_i
     gc.collect()
     return model_vid_sm, model_nsp, model_t, model_th, model_phi, model_roll, model_pitch, model_active, model_gz
 
-def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, has_mouse=False, max_frames=60*60, model_dt=.025, downsamp_vid = .25, do_worldcam_correction=False, reprocess=False, medfiltbins=11, **kwargs):
+def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, has_mouse=False, max_frames=60*60, model_dt=.025, downsamp_vid = 4, do_worldcam_correction=False, reprocess=False, medfiltbins=11, **kwargs):
         
     ##### Align Data #####
     if do_worldcam_correction:
         model_file = (save_dir / 'ModelData_dt{:03d}.h5'.format(int(model_dt*1000)))
     else: 
-        # model_file = save_dir / 'ModelData_dt{:03d}_rawWorldCam_{:d}ds.h5'.format(int(model_dt*1000),int(downsamp_vid*100))
-        model_file = save_dir / 'ModelData_dt{:03d}_rawWorldCam.h5'.format(int(model_dt*1000))
+        model_file = save_dir / 'ModelData_dt{:03d}_rawWorldCam_{:d}ds.h5'.format(int(model_dt*1000),int(downsamp_vid))
+        # model_file = save_dir / 'ModelData_dt{:03d}_rawWorldCam.h5'.format(int(model_dt*1000))
+        # model_file = save_dir / 'ModelData_dt050_rawWorldCam_2ds.h5'
     if (model_file.exists()) & (reprocess==False):
         data = ioh5.load(model_file)
     else:
@@ -368,7 +368,7 @@ def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, h
         # theta_switch_fig, th_switch = plot_param_switch_check(eye_params)
         # diagnostic_pdf.savefig()
         # plt.close()
-
+        print(world_vid.shape)
         # calculate eye veloctiy
         dEye = np.diff(th)
         # check accelerometer / eye temporal alignment
@@ -555,9 +555,9 @@ def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, h
         start = time.time()
         sz = np.shape(world_vid)
         # downsamp = .5 #0.25
-        world_vid_sm = np.zeros((sz[0],int(sz[1]*downsamp_vid),int(sz[2]*downsamp_vid)))
+        world_vid_sm = np.zeros((sz[0],int(sz[1]/downsamp_vid),int(sz[2]/downsamp_vid)))
         for f in range(sz[0]):
-            world_vid_sm[f,:,:] = cv2.resize(world_vid[f,:,:],(int(sz[2]*downsamp_vid),int(sz[1]*downsamp_vid)))
+            world_vid_sm[f,:,:] = cv2.resize(world_vid[f,:,:],(int(sz[2]/downsamp_vid),int(sz[1]/downsamp_vid)))
         std_im = np.std(world_vid_sm, axis=0, dtype=float)
         img_norm = ((world_vid_sm-np.mean(world_vid_sm,axis=0,dtype=float))/std_im).astype(float)
         std_im[std_im<20] = 0
@@ -599,7 +599,7 @@ def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, h
         print('Done Loading Unaligned data')
     return data
 
-def load_train_test(file_dict, save_dir, model_dt=.1, frac=.1, train_size=.7, do_shuffle=False, do_norm=False, free_move=True, has_imu=True, has_mouse=False, NKfold=1,thresh_cells=False,**kwargs):
+def load_train_test(file_dict, save_dir, model_dt=.1, frac=.1, train_size=.7, do_shuffle=False, do_norm=False, free_move=True, has_imu=True, has_mouse=False, NKfold=1,thresh_cells=False,cut_inactive=True,move_medwin=7,**kwargs):
     ##### Load in preprocessed data #####
     data = load_ephys_data_aligned(file_dict, save_dir, model_dt=model_dt, free_move=free_move, has_imu=has_imu, has_mouse=has_mouse,**kwargs)
     if free_move:
@@ -608,20 +608,22 @@ def load_train_test(file_dict, save_dir, model_dt=.1, frac=.1, train_size=.7, do
         for key in data.keys():
             nan_idxs.append(np.where(np.isnan(data[key]))[0])
         good_idxs = np.ones(len(data['model_active']),dtype=bool)
-        good_idxs[data['model_active']<.5] = False
+        good_idxs[data['model_active']<.5] = False # .5 based on histogram, determined emperically 
         good_idxs[np.unique(np.hstack(nan_idxs))] = False
     else:
         good_idxs = np.where((np.abs(data['model_th'])<50) & (np.abs(data['model_phi'])<50))[0].astype(int)
-    
+
     data['raw_nsp'] = data['model_nsp'].copy()
-    ##### return only active data #####
-    for key in data.keys():
-        if (key != 'model_nsp') & (key != 'model_active') & (key != 'unit_nums'):
-            data[key] = data[key][good_idxs] # interp_nans(data[key]).astype(float)
-        elif (key == 'model_nsp'):
-            data[key] = data[key][good_idxs]
-        elif (key == 'unit_nums'):
-            pass
+    if cut_inactive:
+        ##### return only active data #####
+        for key in data.keys():
+            if (key != 'model_nsp') & (key != 'model_active') & (key != 'unit_nums') & (key != 'model_vis_sm_shift'):
+                if len(data[key])>0:
+                    data[key] = data[key][good_idxs] # interp_nans(data[key]).astype(float)
+            elif (key == 'model_nsp'):
+                data[key] = data[key][good_idxs]
+            elif (key == 'unit_nums') | (key == 'model_vis_sm_shift'):
+                pass
 
     gss = GroupShuffleSplit(n_splits=NKfold, train_size=train_size, random_state=42)
     nT = data['model_nsp'].shape[0]
@@ -662,6 +664,8 @@ def load_train_test(file_dict, save_dir, model_dt=.1, frac=.1, train_size=.7, do
         if free_move:
             data['model_roll'] = (data['model_roll'] - FM_move_avg[0,2])/FM_move_avg[1,2]
             data['model_pitch'] = (data['model_pitch'] - FM_move_avg[0,3])/FM_move_avg[1,3]
+            data['model_roll'] = medfilt(data['model_roll'],move_medwin)
+            data['model_pitch'] = medfilt(data['model_pitch'],move_medwin)
         else:
             # data['model_roll'] = (0 - FM_move_avg[0,2])/FM_move_avg[1,2])
             data['model_pitch'] = (np.zeros(data['model_phi'].shape) - FM_move_avg[0,3])/FM_move_avg[1,3]
@@ -669,6 +673,8 @@ def load_train_test(file_dict, save_dir, model_dt=.1, frac=.1, train_size=.7, do
         if free_move:
             data['model_roll'] = (data['model_roll'] - FM_move_avg[0,2])
             data['model_pitch'] = (data['model_pitch'] - FM_move_avg[0,3])
+            data['model_roll'] = medfilt(data['model_roll'],move_medwin)
+            data['model_pitch'] = medfilt(data['model_pitch'],move_medwin)
         else:
             data['model_pitch'] = (np.zeros(data['model_phi'].shape) - FM_move_avg[0,3])
             ### 0 - fm_pitch/sd_pitch_FM
@@ -687,9 +693,9 @@ def load_Kfold_forPlots(params, file_dict={}, Kfold=0, dataset_type='test',thres
     params['Ncells'] = data['model_nsp'].shape[-1]
 
     if params['free_move']:
-        move_train = np.hstack((data['train_th'][:, np.newaxis], data['train_phi'][:, np.newaxis], data['train_pitch'][:, np.newaxis],data['train_roll'][:, np.newaxis]))
-        move_test = np.hstack((data['test_th'][:, np.newaxis], data['test_phi'][:, np.newaxis], data['test_pitch'][:, np.newaxis],data['test_roll'][:, np.newaxis]))
-        model_move = np.hstack((data['model_th'][:, np.newaxis], data['model_phi'][:, np.newaxis], data['model_pitch'][:, np.newaxis],data['model_roll'][:, np.newaxis]))
+        move_train = np.hstack((data['train_th'][:, np.newaxis], data['train_phi'][:, np.newaxis],data['train_pitch'][:, np.newaxis],data['train_roll'][:, np.newaxis]))
+        move_test = np.hstack((data['test_th'][:, np.newaxis], data['test_phi'][:, np.newaxis],data['test_pitch'][:, np.newaxis],data['test_roll'][:, np.newaxis]))
+        model_move = np.hstack((data['model_th'][:, np.newaxis], data['model_phi'][:, np.newaxis],data['model_pitch'][:, np.newaxis],data['model_roll'][:, np.newaxis]))
         model_move = (model_move - np.nanmean(model_move,axis=0))
         move_test = model_move[test_idx]
         move_train = model_move[train_idx]
@@ -795,24 +801,24 @@ def arg_parser():
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--free_move', type=str_to_bool, default=True)
+    parser.add_argument('--free_move', type=str_to_bool, default=False)
     parser.add_argument('--prey_cap', type=str_to_bool, default=False)
-    parser.add_argument('--date_ani', type=str, default='102821/J570LT')#'070921/J553RT')
-    parser.add_argument('--save_dir', type=str, default='~/Research/SensoryMotorPred_Data/data/')
-    parser.add_argument('--fig_dir', type=str, default='~/Research/SensoryMotorPred_Data/Figures')
-    parser.add_argument('--data_dir', type=str, default='~/Goeppert/freely_moving_ephys/ephys_recordings/')
+    parser.add_argument('--date_ani', type=str, default='122021/J581RT')#'070921/J553RT')
+    parser.add_argument('--save_dir', type=str, default='~/Research/SensoryMotorPred_Data/data2/')
+    parser.add_argument('--fig_dir', type=str, default='~/Research/SensoryMotorPred_Data/Figures2')
+    parser.add_argument('--data_dir', type=str, default='~/Goeppert/nlab-nas/freely_moving_ephys/ephys_recordings/')
     args = parser.parse_args()
     args = vars(args)
     # pd.set_option('display.max_rows', None)
-    FigPath = check_path(Path('~/Research/SensoryMotorPred_Data').expanduser(),'Figures/Encoding')
+    FigPath = check_path(Path('~/Research/SensoryMotorPred_Data').expanduser(),'Figures2/Encoding')
 
     # ray.init(
     #     ignore_reinit_error=True,
     #     logging_level=logging.ERROR,
     # )
 
-    model_dt=.05
-    downsamp_vid = .5
+    model_dt=.25
+    downsamp_vid = 2
     free_move = True
     prey_cap=False
     fm_dir = 'fm1' if prey_cap==False else 'fm1_prey'
@@ -820,7 +826,7 @@ if __name__ == '__main__':
         stim_type = fm_dir
     else:
         stim_type = 'hf1_wn'    
-    dates_all = ['070921/J553RT' ,'101521/J559NC','102821/J570LT','110421/J569LT'] # '102621/J558NC' '062921/G6HCK1ALTRN',
+    dates_all = ['070921/J553RT' ,'101521/J559NC','102821/J570LT','110421/J569LT','122021/J581RT'] # '102621/J558NC' '062921/G6HCK1ALTRN',
     date_ani = args['date_ani']
     date_ani2 = '_'.join(date_ani.split('/'))
     data_dir = Path(args['data_dir']).expanduser() / date_ani / stim_type 
