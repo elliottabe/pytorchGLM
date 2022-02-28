@@ -136,4 +136,4 @@ dmypy.json
 .vscode/
 
 # Ignore Archive
-./Archive/
+Archive/
