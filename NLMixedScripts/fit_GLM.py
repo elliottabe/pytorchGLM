@@ -55,7 +55,7 @@ def get_model(input_size, output_size, meanbias, MovModel, device, l, a, params,
                         reg_alph=params['alphas'][a],reg_alphm=params['alphas_m'][a],move_features=params['move_features'],
                         train_shifter=params['train_shifter'], shift_hidden=50,
                         LinMix=params['LinMix'], device=device,).to(device)
-    if (params['train_shifter']==False) & (params['MovModel']!=0) & (params['NoShifter']==False) & (params['SimRF']==False):
+    if (params['train_shifter']==False) & (params['MovModel']!=0) & (params['NoShifter']==False) & (params['SimRF']==False) & (params['do_shuffle']==False):
         state_dict = l1.state_dict()
         best_shift = 'GLM_{}_dt{:03d}_T{:02d}_MovModel{:d}_NB{}_Kfold{:01d}.pth'.format('Pytorch_BestShift',int(params['model_dt']*1000), 1, 1, best_shifter_Nepochs, Kfold)
         checkpoint = torch.load(params['save_dir']/best_shift)
@@ -66,7 +66,7 @@ def get_model(input_size, output_size, meanbias, MovModel, device, l, a, params,
                 else:
                     state_dict[key] = checkpoint['model_state_dict'][key]
         l1.load_state_dict(state_dict)
-    elif (params['NoShifter']==True) :
+    elif (params['NoShifter']==True) | (params['do_shuffle']==True):
         pass
     elif (params['SimRF']==True):
         SimRF_file = params['save_dir'].parent.parent.parent/'121521/SimRF/fm1/SimRF_withL1_dt050_T01_Model1_NB10000_Kfold00_best.h5'
@@ -95,7 +95,10 @@ def get_model(input_size, output_size, meanbias, MovModel, device, l, a, params,
             model_type = 'Pytorch_Vis_NoL1'
         else:
             model_type = 'Pytorch_Vis_withL1'
-        GLM_LinVis = ioh5.load(params['save_model_Vis']/'GLM_{}_dt{:03d}_T{:02d}_MovModel{:d}_NB{}_Kfold{:02d}_best.h5'.format(model_type, int(params['model_dt']*1000), params['nt_glm_lag'], 1, NepochVis, Kfold))
+        if params['do_shuffle']==True:    
+            GLM_LinVis = ioh5.load(params['save_model_Vis']/'GLM_{}_dt{:03d}_T{:02d}_MovModel{:d}_NB{}_Kfold{:02d}_shuffled_best.h5'.format(model_type, int(params['model_dt']*1000), params['nt_glm_lag'], 1, NepochVis, Kfold))
+        else:
+            GLM_LinVis = ioh5.load(params['save_model_Vis']/'GLM_{}_dt{:03d}_T{:02d}_MovModel{:d}_NB{}_Kfold{:02d}_best.h5'.format(model_type, int(params['model_dt']*1000), params['nt_glm_lag'], 1, NepochVis, Kfold))
         state_dict = l1.state_dict()
         for key in state_dict.keys():
             if 'posNN' not in key:
@@ -317,7 +320,7 @@ def load_params(MovModel,Kfolds:int,args,file_dict=None,debug=False):
         'do_shuffle': args['do_shuffle'],
         'do_norm': args['do_norm'],
         'do_worldcam_correction': False,
-        'lag_list': [-2,-1,0,1,2],
+        'lag_list': [0],#[-2,-1,0,1,2],
         'free_move': free_move,
         'stim_type': stim_type,
         'base_dir': base_dir,
@@ -388,7 +391,6 @@ if __name__ == '__main__':
             logging_level=logging.ERROR,
         )
     ModRun = [int(i) for i in args['ModRun'].split(',')] #[0,1,2,3,4] #-1,
-    # ModRun = [1]
     for Kfold in np.arange(args['NKfold']):
         for ModelRun in ModRun:
             if ModelRun == -1: # train shifter
