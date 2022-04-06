@@ -166,7 +166,7 @@ def grab_aligned_data(goodcells, worldT, accT, img_norm, gz, groll, gpitch, th_i
 
     # get active times
     if free_move:
-        interp = interp1d(accT,(gz-np.mean(gz))*7.5,bounds_error=False)
+        interp = interp1d(accT, (gz-np.mean(gz))*7.5,bounds_error=False)
         model_gz = interp(model_t)
         model_active = np.convolve(np.abs(model_gz), np.ones(int(1/model_dt)), 'same') / len(np.ones(int(1/model_dt)))
         use = np.where((model_active>40))[0] # (np.abs(model_th)<10) & (np.abs(model_phi)<10) & 
@@ -362,6 +362,7 @@ def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, h
             isslow = sorted(list(set(chain.from_iterable([list(range(int(i)-3,int(i)+4)) for i in np.where(isfast==False)[0]]))))
             th[isslow] = np.nan
             phi[isslow] = np.nan
+
         # check that deinterlacing worked correctly
         # plot theta and theta_switch
         # want theta_switch to be jagged, theta to be smooth
@@ -793,32 +794,31 @@ def arg_parser():
     parser.add_argument('--free_move', type=str_to_bool, default=True)
     parser.add_argument('--prey_cap', type=str_to_bool, default=False)
     parser.add_argument('--date_ani', type=str, default='102821/J570LT')#'070921/J553RT')
-    parser.add_argument('--save_dir', type=str, default='~/Research/SensoryMotorPred_Data/data/')
+    parser.add_argument('--save_dir', type=str, default='~/Research/SensoryMotorPred_Data/data_replay/')
     parser.add_argument('--fig_dir', type=str, default='~/Research/SensoryMotorPred_Data/Figures')
     parser.add_argument('--data_dir', type=str, default='~/Goeppert/freely_moving_ephys/ephys_recordings/')
     args = parser.parse_args()
     return vars(args)
 
-if __name__ == '__main__':
+if __name__ == '__main__': 
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--free_move', type=str_to_bool, default=False)
+    parser.add_argument('--free_move', type=str_to_bool, default=True)
     parser.add_argument('--prey_cap', type=str_to_bool, default=False)
-    parser.add_argument('--date_ani', type=str, default='122021/J581RT')#'070921/J553RT')
-    parser.add_argument('--save_dir', type=str, default='~/Research/SensoryMotorPred_Data/data2/')
+    parser.add_argument('--date_ani', type=str, default='070921/J553RT') # '122021/J581RT')#
+    parser.add_argument('--save_dir', type=str, default='~/Research/SensoryMotorPred_Data/data_replay/')
     parser.add_argument('--fig_dir', type=str, default='~/Research/SensoryMotorPred_Data/Figures2')
     parser.add_argument('--data_dir', type=str, default='~/Goeppert/nlab-nas/freely_moving_ephys/ephys_recordings/')
     args = parser.parse_args()
     args = vars(args)
     # pd.set_option('display.max_rows', None)
-    FigPath = check_path(Path('~/Research/SensoryMotorPred_Data').expanduser(),'Figures2/Encoding')
 
     # ray.init(
     #     ignore_reinit_error=True,
     #     logging_level=logging.ERROR,
     # )
 
-    model_dt=.25
-    downsamp_vid = 2
+    model_dt=.016 # .25
+    downsamp_vid = 1
     free_move = True
     prey_cap=False
     fm_dir = 'fm1' if prey_cap==False else 'fm1_prey'
@@ -841,7 +841,7 @@ if __name__ == '__main__':
     fig_dir.mkdir(parents=True, exist_ok=True)
 
     file_dict = {'cell': 0,
-                'drop_slow_frames': True,
+                'drop_slow_frames': False, #True,
                 'ephys': list(data_dir.glob('*ephys_merge.json'))[0].as_posix(),
                 'ephys_bin': list(data_dir.glob('*Ephys.bin'))[0].as_posix(),
                 'eye': list(data_dir.glob('*REYE.nc'))[0].as_posix(),
