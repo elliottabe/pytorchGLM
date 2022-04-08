@@ -600,7 +600,7 @@ def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, h
         print('Done Loading Unaligned data')
     return data
 
-def load_train_test(file_dict, save_dir, model_dt=.1, frac=.1, train_size=.7, do_shuffle=False, do_norm=False, free_move=True, has_imu=True, has_mouse=False, NKfold=1,thresh_cells=False,cut_inactive=True,move_medwin=7,**kwargs):
+def load_train_test(file_dict, save_dir, model_dt=.1, frac=.1, shifter_train_size=.2, test_train_size=.75, do_shuffle=False, do_norm=False, free_move=True, has_imu=True, has_mouse=False, NKfold=1,thresh_cells=False,cut_inactive=True,move_medwin=7,**kwargs):
     ##### Load in preprocessed data #####
     data = load_ephys_data_aligned(file_dict, save_dir, model_dt=model_dt, free_move=free_move, has_imu=has_imu, has_mouse=has_mouse,**kwargs)
     if free_move:
@@ -609,7 +609,7 @@ def load_train_test(file_dict, save_dir, model_dt=.1, frac=.1, train_size=.7, do
         for key in data.keys():
             nan_idxs.append(np.where(np.isnan(data[key]))[0])
         good_idxs = np.ones(len(data['model_active']),dtype=bool)
-        good_idxs[data['model_active']<.5] = False # .5 based on histogram, determined emperically 
+        good_idxs[data['model_active']<0.5] = False # .5 based on histogram, determined emperically 
         good_idxs[np.unique(np.hstack(nan_idxs))] = False
     else:
         good_idxs = np.where((np.abs(data['model_th'])<50) & (np.abs(data['model_phi'])<50))[0].astype(int)
@@ -625,18 +625,35 @@ def load_train_test(file_dict, save_dir, model_dt=.1, frac=.1, train_size=.7, do
                 data[key] = data[key][good_idxs]
             elif (key == 'unit_nums') | (key == 'model_vis_sm_shift'):
                 pass
-
-    gss = GroupShuffleSplit(n_splits=NKfold, train_size=train_size, random_state=42)
+        
+    ##### Splitting data for shifter, then split for model training #####
+    # gss = GroupShuffleSplit(n_splits=NKfold, train_size=shifter_train_size, random_state=42)
+    np.random.seed(42)
     nT = data['model_nsp'].shape[0]
     groups = np.hstack([i*np.ones(int((frac*i)*nT) - int((frac*(i-1))*nT)) for i in range(1,int(1/frac)+1)])
-
+    train_idx_list_shifter=[]
+    test_idx_list_shifter=[]
     train_idx_list=[]
     test_idx_list = []
-    for train_idx, test_idx in gss.split(np.arange(data['model_nsp'].shape[0]), groups=groups):
-        train_idx_list.append(train_idx)
-        test_idx_list.append(test_idx)
+    for Kfold in np.arange(NKfold):
+        glist = np.arange(1,1/frac+1)
+        shifter_groups = np.random.choice(glist,size=int((1/frac)*shifter_train_size),replace=False)
+        idx = np.arange(nT)
+        sampled_inds = np.any(np.array([groups==shifter_groups[n] for n in np.arange(len(shifter_groups))]),axis=0)
+        train_idx_list_shifter.append(idx[sampled_inds])
+        test_idx_list_shifter.append(idx[~sampled_inds])
+        glist=glist[~np.any(np.array([glist==shifter_groups[n] for n in np.arange(len(shifter_groups))]),axis=0)]
+        
+        if kwargs['train_shifter']==False:
+            train_groups = np.random.choice(glist,size=int(len(glist)*test_train_size),replace=False)
+            train_idx = np.any(np.array([groups==train_groups[n] for n in np.arange(len(train_groups))]),axis=0)
+            train_idx_list.append(idx[train_idx])
+            test_idx_list.append(idx[(~train_idx)&(~sampled_inds)])
+        else:
+            train_idx_list = train_idx_list_shifter
+            test_idx_list  = test_idx_list_shifter
 
-    # if thresh_cells:
+    if thresh_cells:
         print('Tot_units: {}'.format(data['unit_nums'].shape))
         if free_move:
             if (kwargs['save_dir_hf']/'bad_cells.npy').exists():

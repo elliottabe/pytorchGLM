@@ -1,2 +1,12 @@
 # NonLinearMixedSel_FreelyMoving
 Code base for fitting freely moving RFs and exploring nonlinear mixed selctivity
+
+# Setup For Ubuntu 20.04
+To install the repo there is a conda environment that will install the necessary packages. Use command: 
+conda env create -f environment.yaml
+
+After installing activate the conda environment:
+conda activate pytorchGLM
+
+To install NLMixedSel, in the repo folder use:
+pip install -e .

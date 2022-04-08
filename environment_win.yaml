@@ -1,0 +1,33 @@
+name: pytorchGLM
+channels:
+  - conda-forge
+  - pytorch
+  - nvidia
+  - defaults
+dependencies:
+  - python==3.8
+  - pip
+  - scipy
+  - numpy
+  - pandas
+  - matplotlib
+  - xarray
+  - ipykernel
+  - tqdm
+  - h5py
+  - pytables
+  - seaborn
+  - ipywidgets
+  - jupyter
+  - jupyterlab
+  - conda-forge::netCDF4
+  - pytorch::pytorch=1.9
+  - pytorch::torchvision=0.10
+  - conda-forge::cudatoolkit=11.1
+  - pip:
+    - opencv-python
+    - ray[default]==1.7
+    - sklearn
+    - test_tube
+    - kornia
+prefix: /home/eabe/anaconda3/envs/pytorchGLM

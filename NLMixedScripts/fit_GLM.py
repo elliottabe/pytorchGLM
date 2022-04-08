@@ -36,11 +36,11 @@ def arg_parser(jupyter=False):
     parser.add_argument('--do_norm', type=str_to_bool, default=True)
     parser.add_argument('--do_shuffle', type=str_to_bool, default=False)
     parser.add_argument('--train_shifter', type=str_to_bool, default=False)
-    parser.add_argument('--complex', type=str_to_bool, default=True)
+    parser.add_argument('--complex', type=str_to_bool, default=False)
     parser.add_argument('--thresh_cells', type=str_to_bool, default=True)
     parser.add_argument('--SimRF', type=str_to_bool, default=False)
     parser.add_argument('--Kfold', type=int, default=0)
-    parser.add_argument('--ModRun', type=str,default='1') # '0,1,2,3,4'
+    parser.add_argument('--ModRun', type=str,default='1') # '-1,0,1,2,3,4'
     parser.add_argument('--shiftn', type=int, default=12)
     parser.add_argument('--Nepochs', type=int, default=10000)
     if jupyter:
@@ -321,7 +321,7 @@ def load_params(MovModel,Kfolds:int,args,file_dict=None,debug=False):
     fig_dir.mkdir(parents=True, exist_ok=True)
 
     exp = Experiment(name='MovModel{}'.format(MovModel),
-                     save_dir=save_dir / 'Revisions_Testing',
+                     save_dir=save_dir / 'Shifter_TrTe_testing',
                      debug=debug,
                      version=Kfolds)
     save_model = exp.save_dir / exp.name / 'version_{}'.format(Kfolds)
@@ -444,7 +444,6 @@ if __name__ == '__main__':
         train_idx = train_idx_list[Kfold]
         test_idx = test_idx_list[Kfold]
         data = load_Kfold_data(data,train_idx,test_idx,params)
-        # locals().update(data)
 
         params, xtr, xtrm, xte, xtem, ytr, yte, shift_in_tr, shift_in_te, input_size, output_size, meanbias, model_move = load_GLM_data(data, params, train_idx, test_idx)
         print('Model: {}, LinMix: {}, move_features: {}, Ncells: {}, train_shifter: {}'.format(params['MovModel'],params['LinMix'],params['move_features'],params['Ncells'],params['train_shifter']))
@@ -552,7 +551,8 @@ if __name__ == '__main__':
                     th_range = 40/FM_move_avg[1,0]
                     phi_range = 40/FM_move_avg[1,1]
                     pitch_range = 40/FM_move_avg[1,2]
-                    ang_sweepx,ang_sweepy,ang_sweepz = np.meshgrid(np.linspace(-th_range,th_range,81),np.linspace(-phi_range,phi_range,81),np.linspace(-pitch_range,pitch_range,81),sparse=False,indexing='ij')
+                    n_ranges = 81
+                    ang_sweepx,ang_sweepy,ang_sweepz = np.meshgrid(np.linspace(-th_range,th_range,n_ranges),np.linspace(-phi_range,phi_range,n_ranges),np.linspace(-pitch_range,pitch_range,n_ranges),sparse=False,indexing='ij')
                     # ang_sweepx,ang_sweepy,ang_sweepz = np.meshgrid(np.arange(-40,40),np.arange(-40,40),np.arange(-40,40),sparse=False,indexing='ij')
                     shift_mat = np.zeros((3,) + ang_sweepx.shape)
                     for i in range(ang_sweepx.shape[0]):
@@ -580,6 +580,7 @@ if __name__ == '__main__':
                         ax[n].set_xlabel(r'$\theta$')
                         ax[n].set_ylabel(r'$\phi$')
                         ax[n].set_title(shift_titles[n])
+                    plt.suptitle('Best_shifter={}'.format(best_shifter),y=1)
 
                     plt.tight_layout()
                     pdf.savefig()
