@@ -1,5 +1,6 @@
 import argparse
 import logging
+from sympy import false
 import yaml
 from pathlib import Path
 
@@ -37,6 +38,7 @@ def arg_parser(jupyter=False):
     parser.add_argument('--do_shuffle', type=str_to_bool, default=False)
     parser.add_argument('--train_shifter', type=str_to_bool, default=False)
     parser.add_argument('--complex', type=str_to_bool, default=False)
+    parser.add_argument('--shifter_5050', type=str_to_bool, default=False)
     parser.add_argument('--thresh_cells', type=str_to_bool, default=True)
     parser.add_argument('--SimRF', type=str_to_bool, default=False)
     parser.add_argument('--Kfold', type=int, default=0)
@@ -216,6 +218,11 @@ def load_GLM_data(data, params, train_idx, test_idx, move_medwin=7):
         params['NoL1'] = True
         params['do_norm']=True
         params['model_type'] = params['model_type'] + 'Shifter'
+        if params['shifter_5050']:
+            params['model_type'] = params['model_type'] + '1'
+        else: 
+            params['model_type'] = params['model_type'] + '0'
+            
     elif params['NoShifter']:
         params['model_type'] = params['model_type'] + 'NoShifter'
 
@@ -245,6 +252,7 @@ def load_GLM_data(data, params, train_idx, test_idx, move_medwin=7):
     output_size = ytr.shape[1]
     params['lr_shift'] = [1e-3,1e-2]
     params['Ncells'] = ytr.shape[-1]
+    
     # Reshape data (video) into (T*n)xN array
     if params['MovModel'] == 0:
         mx_train = move_train.copy()
@@ -270,7 +278,6 @@ def load_GLM_data(data, params, train_idx, test_idx, move_medwin=7):
         xtrm = None
         xtem = None
         params['move_features'] = None
-        sta_init = torch.zeros((output_size, xtr.shape[-1]))
         params['alphas'] = np.array([.0001 if params['NoL1']==False else None])
         params['lambdas'] = np.hstack((0, np.logspace(-2, 3, 20)))
         params['nlam'] = len(params['lambdas'])
@@ -285,12 +292,11 @@ def load_GLM_data(data, params, train_idx, test_idx, move_medwin=7):
         xtrm = torch.from_numpy(move_train.astype(np.float32)).to(device)
         xtem = torch.from_numpy(move_test.astype(np.float32)).to(device)
         params['move_features'] = xtrm.shape[-1]
-        sta_init = torch.zeros((output_size, xtr.shape[-1]))
         params['alphas'] = np.array([None])
         params['lambdas'] =  np.hstack((0, np.logspace(-2, 3, 20)))
         params['nalph'] = len(params['alphas'])
         params['alphas_m'] = np.array(params['nalph']*[None])
-        params['lambdas_m'] = np.array([0]) # np.hstack((0, np.logspace(-5, 6, 40)))
+        params['lambdas_m'] = np.array([0]) 
         params['nlam'] = len(params['lambdas_m'])
         params['lr_w'] = [1e-5, 1e-3]
         params['lr_m'] = [1e-6, 1e-3]
@@ -300,7 +306,6 @@ def load_GLM_data(data, params, train_idx, test_idx, move_medwin=7):
 
 def load_params(MovModel,Kfolds:int,args,file_dict=None,debug=False):
 
-    ##### '070921/J553RT' '102621/J558NC' '110421/J569LT' #####
     free_move = args['free_move']
     fm_dir = 'fm1' if args['prey_cap']==False else 'fm1_prey'
     if args['free_move']:
@@ -321,7 +326,7 @@ def load_params(MovModel,Kfolds:int,args,file_dict=None,debug=False):
     fig_dir.mkdir(parents=True, exist_ok=True)
 
     exp = Experiment(name='MovModel{}'.format(MovModel),
-                     save_dir=save_dir / 'Shifter_TrTe_testing',
+                     save_dir=save_dir / 'Shifter_TrTe_testing', #'GLM_Network',#
                      debug=debug,
                      version=Kfolds)
     save_model = exp.save_dir / exp.name / 'version_{}'.format(Kfolds)
@@ -359,6 +364,7 @@ def load_params(MovModel,Kfolds:int,args,file_dict=None,debug=False):
         'thresh_cells': args['thresh_cells'],
         'downsamp_vid': 4,
         'complex': args['complex'],
+        'shifter_5050': args['shifter_5050']
     }
 
     params['nt_glm_lag']=len(params['lag_list'])
@@ -369,7 +375,7 @@ def load_params(MovModel,Kfolds:int,args,file_dict=None,debug=False):
 
     if file_dict is None:
         file_dict = {'cell': 0,
-                    'drop_slow_frames': True,
+                    'drop_slow_frames': False,
                     'ephys': list(data_dir.glob('*ephys_merge.json'))[0].as_posix(),
                     'ephys_bin': list(data_dir.glob('*Ephys.bin'))[0].as_posix(),
                     'eye': list(data_dir.glob('*REYE.nc'))[0].as_posix(),
@@ -409,35 +415,29 @@ if __name__ == '__main__':
     for ModelRun in ModRun:
         if ModelRun == -1: # train shifter
             Nepochs_saved = args['Nepochs']
-            args['train_shifter']=True
-            args['Nepochs'] = 5000
+            args['train_shifter']  = True
+            args['Nepochs']        = 5000
             params, file_dict, exp = load_params(1,Kfold,args)
-            params['lag_list'] = [0]
-            params['nt_glm_lag']=len(params['lag_list'])
+            params['lag_list']     = [0]
+            params['nt_glm_lag']   = len(params['lag_list'])
         elif ModelRun == 0: # pos only
-            args['train_shifter']=False
-            # args['Nepochs']= 5000
+            args['train_shifter']  = False
             params, file_dict, exp = load_params(0,Kfold,args)
         elif ModelRun == 1: # vis only
-            args['train_shifter']=False
-            # args['Nepochs'] = 5000
-            # args['NoL1'] = False
+            args['train_shifter']  = False
             params, file_dict, exp = load_params(1,Kfold,args,file_dict={})
         elif ModelRun == 2: # add fit
-            args['train_shifter']=False
-            # args['Nepochs'] = 5000
-            args['NoL1'] = False
+            args['train_shifter']  = False
+            args['NoL1']           = False
             params, file_dict, exp = load_params(2,Kfold,args)
         elif ModelRun == 3: # mul. fit
-            args['train_shifter']=False
-            # args['Nepochs'] = 5000
-            args['NoL1'] = False
+            args['train_shifter']  = False
+            args['NoL1']           = False
             params, file_dict, exp = load_params(3,Kfold,args)
         elif ModelRun == 4: # head-fixed
-            args['train_shifter']=False
-            args['free_move']=False
-            args['NoL1'] = False
-            # args['Nepochs'] = 5000
+            args['train_shifter']  = False
+            args['free_move']      = False
+            args['NoL1']           = False
             params, file_dict, exp = load_params(1,Kfold,args)
         VisNepochs = args['Nepochs']
         data, train_idx_list, test_idx_list = load_train_test(file_dict, **params)
@@ -474,9 +474,6 @@ if __name__ == '__main__':
 
                 for name, p in l1.named_parameters():
                     GLM_CV[name][a,l] = p.clone().cpu().detach().numpy()
-
-                # if (l == 0) & (params['MovModel']==1):
-                #     state_dict = l1.state_dict()
 
                 GLM_CV['tloss_trace_all'][a, l] = tloss_trace.T
                 GLM_CV['vloss_trace_all'][a, l] = vloss_trace.T
@@ -535,9 +532,9 @@ if __name__ == '__main__':
             torch.save({'model_state_dict': Best_RF}, (params['save_dir_fm'] / best_shift))
             torch.save({'model_state_dict': Best_RF}, (params['save_dir_hf'] / best_shift))
             a = 0 
-            # save_model2 = save_model/'Shifter'
+
             model_vid_sm_shift2 = {}
-            pdf_name = params['fig_dir']/ 'VisMov_{}_dt{:03d}_Lags{:02d}_MovModel{:d}_CellSummary.pdf'.format('Pytorch_VisMov_AddMul_NoL1_Shifter',int(params['model_dt']*1000),params['nt_glm_lag'], params['MovModel'])
+            pdf_name = params['fig_dir']/ 'VisMov_{}_dt{:03d}_Lags{:02d}_MovModel{:d}_CellSummary.pdf'.format(params['model_type'],int(params['model_dt']*1000),params['nt_glm_lag'], params['MovModel'])
             with PdfPages(pdf_name) as pdf:
                 for l,lam in enumerate(tqdm(params['lambdas'])):
                     model_name = 'GLM_{}_WC{}_dt{:03d}_T{:02d}_MovModel{:d}_NB{}_alph{}_lam{}_Kfold{:01d}.pth'.format(params['model_type'],'UC',int(params['model_dt']*1000), params['nt_glm_lag'], params['MovModel'], params['Nepochs'],a,l,Kfold)
@@ -553,15 +550,14 @@ if __name__ == '__main__':
                     pitch_range = 40/FM_move_avg[1,2]
                     n_ranges = 81
                     ang_sweepx,ang_sweepy,ang_sweepz = np.meshgrid(np.linspace(-th_range,th_range,n_ranges),np.linspace(-phi_range,phi_range,n_ranges),np.linspace(-pitch_range,pitch_range,n_ranges),sparse=False,indexing='ij')
-                    # ang_sweepx,ang_sweepy,ang_sweepz = np.meshgrid(np.arange(-40,40),np.arange(-40,40),np.arange(-40,40),sparse=False,indexing='ij')
                     shift_mat = np.zeros((3,) + ang_sweepx.shape)
                     for i in range(ang_sweepx.shape[0]):
                         for j in range(ang_sweepy.shape[1]):
                             ang_sweep = torch.from_numpy(np.vstack((ang_sweepx[i,j,:],ang_sweepy[i,j,:],ang_sweepz[i,j,:])).astype(np.float32).T)
                             shift_vec = l1.shifter_nn(ang_sweep).detach().cpu().numpy()
-                            shift_mat[0,i,j] = shift_vec[:,0] #np.clip(shift_vec[:,0],a_min=-15,a_max=15)
-                            shift_mat[1,i,j] = shift_vec[:,1] #np.clip(shift_vec[:,1],a_min=-15,a_max=15)
-                            shift_mat[2,i,j] = shift_vec[:,2] #np.clip(shift_vec[:,2],a_min=-30,a_max=30)
+                            shift_mat[0,i,j] = shift_vec[:,0]
+                            shift_mat[1,i,j] = shift_vec[:,1]
+                            shift_mat[2,i,j] = shift_vec[:,2]
 
                         
                     fig, ax = plt.subplots(1,4,figsize=(20,5))
@@ -580,11 +576,12 @@ if __name__ == '__main__':
                         ax[n].set_xlabel(r'$\theta$')
                         ax[n].set_ylabel(r'$\phi$')
                         ax[n].set_title(shift_titles[n])
-                    plt.suptitle('Best_shifter={}'.format(best_shifter),y=1)
+                    plt.suptitle('Lambda={}, Best_shifter={}'.format(l,best_shifter),y=1)
 
                     plt.tight_layout()
                     pdf.savefig()
                     plt.close()
+
             ##### Save FM Shifted World Cam #####
             model_name = 'GLM_{}_WC{}_dt{:03d}_T{:02d}_MovModel{:d}_NB{}_alph{}_lam{}_Kfold{:01d}.pth'.format(params['model_type'],'UC',int(params['model_dt']*1000), params['nt_glm_lag'], params['MovModel'], params['Nepochs'],a,best_shifter,Kfold)
             checkpoint = torch.load(params['save_model_shift']/model_name)

@@ -1,4 +1,4 @@
-# copied from https://codereview.stackexchange.com/a/121308 (and slightly modified for updated h5py)
+# copied from https://codereview.stackexchange.com/a/121308 (and slightly modified for updated h5py, Elliott Abe)
 import numpy as np
 import h5py
 #import os

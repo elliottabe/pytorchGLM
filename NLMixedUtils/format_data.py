@@ -167,7 +167,7 @@ def grab_aligned_data(goodcells, worldT, accT, img_norm, gz, groll, gpitch, th_i
     # get active times
     if free_move:
         interp = interp1d(accT, (gz-np.mean(gz))*7.5,bounds_error=False)
-        model_gz = interp(model_t)
+        model_gz = interp(model_t) 
         model_active = np.convolve(np.abs(model_gz), np.ones(int(1/model_dt)), 'same') / len(np.ones(int(1/model_dt)))
         use = np.where((model_active>40))[0] # (np.abs(model_th)<10) & (np.abs(model_phi)<10) & 
         roll_interp = interp1d(accT,groll,bounds_error=False)
@@ -333,8 +333,8 @@ def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, h
         # plot eye postion across recording
         eye_params = eye_data['REYE_ellipse_params']
         # define theta, phi and zero-center
-        th = np.array((eye_params.sel(ellipse_params = 'theta'))*180/np.pi)# -np.nanmean(eye_params.sel(ellipse_params = 'theta'))
-        phi = np.array((eye_params.sel(ellipse_params = 'phi'))*180/np.pi)# -np.nanmean(eye_params.sel(ellipse_params = 'phi'))
+        th = np.array((eye_params.sel(ellipse_params = 'theta'))*180/np.pi)
+        phi = np.array((eye_params.sel(ellipse_params = 'phi'))*180/np.pi)
 
         print('adjusting camera times to match ephys')
         # adjust eye/world/top times relative to ephys
@@ -363,84 +363,90 @@ def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, h
             th[isslow] = np.nan
             phi[isslow] = np.nan
 
-        # check that deinterlacing worked correctly
-        # plot theta and theta_switch
-        # want theta_switch to be jagged, theta to be smooth
-        # theta_switch_fig, th_switch = plot_param_switch_check(eye_params)
-        # diagnostic_pdf.savefig()
-        # plt.close()
+
         print(world_vid.shape)
         # calculate eye veloctiy
         dEye = np.diff(th)
+        accT_correction_file = save_dir/'acct_correction'
         # check accelerometer / eye temporal alignment
-        if file_dict['imu'] is not None:
-            print('checking accelerometer / eye temporal alignment')
-            # plot eye velocity against head movements
-            plt.figure
-            plt.plot(eyeT[0:-1],-dEye,label='-dEye')
-            plt.plot(accTraw,gz_deg,label='gz')
-            plt.legend()
-            plt.xlim(0,10); plt.xlabel('secs'); plt.ylabel('gyro (deg)')
-            plt.tight_layout()
-            diagnostic_pdf.savefig()
-            plt.close()
-            lag_range = np.arange(-0.2,0.2,0.002)
-            cc = np.zeros(np.shape(lag_range))
-            t1 = np.arange(5,len(dEye)/60-120,20).astype(int) # was np.arange(5,1600,20), changed for shorter videos
-            t2 = t1 + 60
-            offset = np.zeros(np.shape(t1))
-            ccmax = np.zeros(np.shape(t1))
-            acc_interp = interp1d(accTraw, (gz-3)*7.5)
-            for tstart in tqdm(range(len(t1))):
-                for l in range(len(lag_range)):
-                    try:
-                        c, lag= nanxcorr(-dEye[t1[tstart]*60 : t2[tstart]*60] , acc_interp(eyeT[t1[tstart]*60:t2[tstart]*60]+lag_range[l]),1)
-                        cc[l] = c[1]
-                    except: # occasional problem with operands that cannot be broadcast togther because of different shapes
-                        cc[l] = np.nan
-                offset[tstart] = lag_range[np.argmax(cc)]    
-                ccmax[tstart] = np.max(cc)
-            offset[ccmax<0.1] = np.nan
-            fig = plt.subplot(1,2,1)
-            plt.plot(eyeT[t1*60],offset)
-            plt.xlabel('secs'); plt.ylabel('offset (secs)')
-            plt.subplot(1,2,2)
-            plt.plot(eyeT[t1*60],ccmax)
-            plt.xlabel('secs'); plt.ylabel('max cc')
-            plt.tight_layout()
-            diagnostic_pdf.savefig()
-            plt.close()
-            del ccmax, dEye
-            gc.collect()
-            if np.isnan(offset).all():
-                found_good_offset = False
-            else:
-                found_good_offset = True
-        if file_dict['imu'] is not None and found_good_offset is True:
-            print('fitting regression to timing drift')
-            # fit regression to timing drift
-            model = LinearRegression()
-            dataT = np.array(eyeT[t1*60 + 30*60])
-            model.fit(dataT[~np.isnan(offset)].reshape(-1,1),offset[~np.isnan(offset)]) 
-            offset0 = model.intercept_
-            drift_rate = model.coef_
-            fig = plt.figure()
-            plt.plot(dataT, offset,'.')
-            plt.plot(dataT, offset0 + dataT*drift_rate)
-            plt.xlabel('secs'); plt.ylabel('offset - secs')
-            plt.title('offset0 = '+str(np.round(offset0,3))+' drift_rate = '+str(np.round(drift_rate,3)))
-            plt.tight_layout()
-            diagnostic_pdf.savefig()
-            plt.close()
-            del dataT
-            gc.collect()
-        elif file_dict['speed'] is not None or found_good_offset is False:
-            offset0 = 0.1
-            drift_rate = -0.000114
-        if file_dict['imu'] is not None:
+        if (~accT_correction_file.exists()) & (reprocess==False):
+            if (file_dict['imu'] is not None):
+                print('checking accelerometer / eye temporal alignment')
+                # plot eye velocity against head movements
+                plt.figure
+                plt.plot(eyeT[0:-1],-dEye,label='-dEye')
+                plt.plot(accTraw,gz_deg,label='gz')
+                plt.legend()
+                plt.xlim(0,10); plt.xlabel('secs'); plt.ylabel('gyro (deg)')
+                plt.tight_layout()
+                diagnostic_pdf.savefig()
+                plt.close()
+                lag_range = np.arange(-0.2,0.2,0.002)
+                cc = np.zeros(np.shape(lag_range))
+                t1 = np.arange(5,len(dEye)/60-120,20).astype(int) # was np.arange(5,1600,20), changed for shorter videos
+                t2 = t1 + 60
+                offset = np.zeros(np.shape(t1))
+                ccmax = np.zeros(np.shape(t1))
+                acc_interp = interp1d(accTraw, (gz-3)*7.5)
+                for tstart in tqdm(range(len(t1))):
+                    for l in range(len(lag_range)):
+                        try:
+                            c, lag= nanxcorr(-dEye[t1[tstart]*60 : t2[tstart]*60] , acc_interp(eyeT[t1[tstart]*60:t2[tstart]*60]+lag_range[l]),1)
+                            cc[l] = c[1]
+                        except: # occasional problem with operands that cannot be broadcast togther because of different shapes
+                            cc[l] = np.nan
+                    offset[tstart] = lag_range[np.argmax(cc)]    
+                    ccmax[tstart] = np.max(cc)
+                offset[ccmax<0.1] = np.nan
+                fig = plt.subplot(1,2,1)
+                plt.plot(eyeT[t1*60],offset)
+                plt.xlabel('secs'); plt.ylabel('offset (secs)')
+                plt.subplot(1,2,2)
+                plt.plot(eyeT[t1*60],ccmax)
+                plt.xlabel('secs'); plt.ylabel('max cc')
+                plt.tight_layout()
+                diagnostic_pdf.savefig()
+                plt.close()
+                del ccmax, dEye
+                gc.collect()
+                if np.isnan(offset).all():
+                    found_good_offset = False
+                else:
+                    found_good_offset = True
+
+            if file_dict['imu'] is not None and found_good_offset is True:
+                print('fitting regression to timing drift')
+                # fit regression to timing drift
+                model = LinearRegression()
+                dataT = np.array(eyeT[t1*60 + 30*60])
+                model.fit(dataT[~np.isnan(offset)].reshape(-1,1),offset[~np.isnan(offset)]) 
+                offset0 = model.intercept_
+                drift_rate = model.coef_
+                fig = plt.figure()
+                plt.plot(dataT, offset,'.')
+                plt.plot(dataT, offset0 + dataT*drift_rate)
+                plt.xlabel('secs'); plt.ylabel('offset - secs')
+                plt.title('offset0 = '+str(np.round(offset0,3))+' drift_rate = '+str(np.round(drift_rate,3)))
+                plt.tight_layout()
+                diagnostic_pdf.savefig()
+                plt.close()
+                del dataT
+                gc.collect()
+            elif file_dict['speed'] is not None or found_good_offset is False:
+                offset0 = 0.1
+                drift_rate = -0.000114
+            if file_dict['imu'] is not None:
+                accT_correction = {'offset0': offset0, 'drift_rate': drift_rate}
+                ioh5.save(accT_correction_file,accT_correction)
+                accT = accTraw - (offset0 + accTraw*drift_rate)
+                del accTraw
+                gc.collect()
+        else: 
+            accT_correction = ioh5.load(accT_correction_file)
+            offset0    = accT_correction['offset0']
+            drift_rate = accT_correction['drift_rate']
             accT = accTraw - (offset0 + accTraw*drift_rate)
-            del accTraw
-            gc.collect()
+
         print('correcting ephys spike times for offset and timing drift')
         for i in ephys_data.index:
             ephys_data.at[i,'spikeT'] = np.array(ephys_data.at[i,'spikeTraw']) - (offset0 + np.array(ephys_data.at[i,'spikeTraw']) *drift_rate)
@@ -600,9 +606,10 @@ def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, h
         print('Done Loading Unaligned data')
     return data
 
-def load_train_test(file_dict, save_dir, model_dt=.1, frac=.1, shifter_train_size=.2, test_train_size=.75, do_shuffle=False, do_norm=False, free_move=True, has_imu=True, has_mouse=False, NKfold=1,thresh_cells=False,cut_inactive=True,move_medwin=7,**kwargs):
+def load_train_test(file_dict, save_dir, model_dt=.1, frac=.1, shifter_train_size=.5, test_train_size=.75, do_shuffle=False, do_norm=False, free_move=True, has_imu=True, has_mouse=False, NKfold=1,thresh_cells=False,cut_inactive=True,move_medwin=11,**kwargs):
     ##### Load in preprocessed data #####
     data = load_ephys_data_aligned(file_dict, save_dir, model_dt=model_dt, free_move=free_move, has_imu=has_imu, has_mouse=has_mouse,**kwargs)
+
     if free_move:
         ##### Find 'good' timepoints when mouse is active #####
         nan_idxs = []
@@ -630,6 +637,8 @@ def load_train_test(file_dict, save_dir, model_dt=.1, frac=.1, shifter_train_siz
     # gss = GroupShuffleSplit(n_splits=NKfold, train_size=shifter_train_size, random_state=42)
     np.random.seed(42)
     nT = data['model_nsp'].shape[0]
+    if kwargs['shifter_5050']:
+        shifter_train_size = .5
     groups = np.hstack([i*np.ones(int((frac*i)*nT) - int((frac*(i-1))*nT)) for i in range(1,int(1/frac)+1)])
     train_idx_list_shifter=[]
     test_idx_list_shifter=[]
@@ -650,8 +659,12 @@ def load_train_test(file_dict, save_dir, model_dt=.1, frac=.1, shifter_train_siz
             train_idx_list.append(idx[train_idx])
             test_idx_list.append(idx[(~train_idx)&(~sampled_inds)])
         else:
-            train_idx_list = train_idx_list_shifter
-            test_idx_list  = test_idx_list_shifter
+            if kwargs['shifter_5050']:
+                train_idx_list = test_idx_list_shifter
+                test_idx_list  = train_idx_list_shifter
+            else:
+                train_idx_list = train_idx_list_shifter
+                test_idx_list  = test_idx_list_shifter
 
     if thresh_cells:
         print('Tot_units: {}'.format(data['unit_nums'].shape))
@@ -834,8 +847,8 @@ if __name__ == '__main__':
     #     logging_level=logging.ERROR,
     # )
 
-    model_dt=.016 # .25
-    downsamp_vid = 1
+    model_dt=.025
+    downsamp_vid = 2
     free_move = True
     prey_cap=False
     fm_dir = 'fm1' if prey_cap==False else 'fm1_prey'
