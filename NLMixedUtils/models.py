@@ -12,6 +12,8 @@ class LinVisNetwork(nn.Module):
                     shift_out=3,
                     reg_alph=None, 
                     reg_alphm=None, 
+                    reg_laplace=None,
+                    lap_M=None,
                     move_features=None, 
                     LinMix=False,
                     train_shifter=False,
@@ -33,8 +35,6 @@ class LinVisNetwork(nn.Module):
             meanbias: can set bias to mean firing rate of each neurons
             device: which device to run network on
         
-        Returns:
-            Prediction of neural activity
         
         '''
         self.in_features = in_features
@@ -57,14 +57,23 @@ class LinVisNetwork(nn.Module):
         if self.reg_alph != None:
             self.alpha = reg_alph*torch.ones(1).to(device)
         
+        self.reg_laplace = reg_laplace
+        if self.reg_laplace != None:
+            self.lalpha = reg_laplace*torch.ones(1).to(device)
+            self.lap_M = lap_M.to(device)
+
+
         # Initialize Movement parameters
         self.reg_alphm = reg_alphm
         if self.move_features != None:
             if reg_alphm != None:
                 self.alpha_m = reg_alphm*torch.ones(1).to(device)
             self.posNN = nn.ModuleDict({'Layer0': nn.Linear(move_features, N_cells)})
-            torch.nn.init.uniform_(self.posNN['Layer0'].weight,a=-1e-6,b=1e-6)
-            torch.nn.init.zeros_(self.posNN['Layer0'].bias)
+            torch.nn.init.uniform_(self.posNN['Layer0'].weight,a=-1e-6,b=1e-6) 
+            if self.LinMix==False:
+                torch.nn.init.ones_(self.posNN['Layer0'].bias) # Bias = 1 for mult bias=0 for add
+            else:    
+                torch.nn.init.zeros_(self.posNN['Layer0'].bias) # Bias = 1 for mult bias=0 for add
 
         # option to train shifter network
         self.train_shifter = train_shifter
@@ -116,10 +125,10 @@ class LinVisNetwork(nn.Module):
         return ret
     
     def loss(self,Yhat, Y): 
-        if self.LinMix:
-            loss_vec = torch.mean((Yhat-Y)**2,axis=0)
-        else:
-            loss_vec = torch.mean((Yhat-Y)**2,axis=0)
+        # if self.LinMix:
+        #     loss_vec = torch.mean((Yhat-Y)**2,axis=0)
+        # else:
+        loss_vec = torch.mean((Yhat-Y)**2,axis=0)
             # loss_vec = torch.mean(Yhat-Y*torch.log(Yhat),axis=0)  # Log-likelihood
         if self.move_features != None:
             if self.reg_alph != None:
@@ -136,5 +145,8 @@ class LinVisNetwork(nn.Module):
             if self.reg_alph != None:
                 l1_reg0 = torch.stack([torch.linalg.vector_norm(NN_params,ord=1) for name, NN_params in self.Cell_NN.named_parameters() if '0.weight' in name])
                 loss_vec = loss_vec + self.alpha*(l1_reg0)
+            elif self.reg_laplace != None:
+                l1_reg2 = torch.mean(torch.matmul(self.Cell_NN[0].weight,torch.matmul(self.lap_M,self.Cell_NN[0].weight.T)),dim=1)
+                loss_vec = loss_vec + self.reg_laplace*l1_reg2
         
         return loss_vec

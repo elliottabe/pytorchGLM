@@ -367,9 +367,14 @@ def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, h
         print(world_vid.shape)
         # calculate eye veloctiy
         dEye = np.diff(th)
-        accT_correction_file = save_dir/'acct_correction'
+        accT_correction_file = save_dir/'acct_correction.h5'
         # check accelerometer / eye temporal alignment
-        if (~accT_correction_file.exists()) & (reprocess==False):
+        if (accT_correction_file.exists()) & (reprocess==False):
+            accT_correction = ioh5.load(accT_correction_file)
+            offset0    = accT_correction['offset0']
+            drift_rate = accT_correction['drift_rate']
+            accT = accTraw - (offset0 + accTraw*drift_rate)
+        else:
             if (file_dict['imu'] is not None):
                 print('checking accelerometer / eye temporal alignment')
                 # plot eye velocity against head movements
@@ -441,11 +446,7 @@ def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, h
                 accT = accTraw - (offset0 + accTraw*drift_rate)
                 del accTraw
                 gc.collect()
-        else: 
-            accT_correction = ioh5.load(accT_correction_file)
-            offset0    = accT_correction['offset0']
-            drift_rate = accT_correction['drift_rate']
-            accT = accTraw - (offset0 + accTraw*drift_rate)
+
 
         print('correcting ephys spike times for offset and timing drift')
         for i in ephys_data.index:
@@ -634,37 +635,49 @@ def load_train_test(file_dict, save_dir, model_dt=.1, frac=.1, shifter_train_siz
                 pass
         
     ##### Splitting data for shifter, then split for model training #####
-    # gss = GroupShuffleSplit(n_splits=NKfold, train_size=shifter_train_size, random_state=42)
-    np.random.seed(42)
-    nT = data['model_nsp'].shape[0]
-    if kwargs['shifter_5050']:
-        shifter_train_size = .5
-    groups = np.hstack([i*np.ones(int((frac*i)*nT) - int((frac*(i-1))*nT)) for i in range(1,int(1/frac)+1)])
-    train_idx_list_shifter=[]
-    test_idx_list_shifter=[]
-    train_idx_list=[]
-    test_idx_list = []
-    for Kfold in np.arange(NKfold):
-        glist = np.arange(1,1/frac+1)
-        shifter_groups = np.random.choice(glist,size=int((1/frac)*shifter_train_size),replace=False)
-        idx = np.arange(nT)
-        sampled_inds = np.any(np.array([groups==shifter_groups[n] for n in np.arange(len(shifter_groups))]),axis=0)
-        train_idx_list_shifter.append(idx[sampled_inds])
-        test_idx_list_shifter.append(idx[~sampled_inds])
-        glist=glist[~np.any(np.array([glist==shifter_groups[n] for n in np.arange(len(shifter_groups))]),axis=0)]
-        
-        if kwargs['train_shifter']==False:
-            train_groups = np.random.choice(glist,size=int(len(glist)*test_train_size),replace=False)
-            train_idx = np.any(np.array([groups==train_groups[n] for n in np.arange(len(train_groups))]),axis=0)
-            train_idx_list.append(idx[train_idx])
-            test_idx_list.append(idx[(~train_idx)&(~sampled_inds)])
-        else:
-            if kwargs['shifter_5050']:
-                train_idx_list = test_idx_list_shifter
-                test_idx_list  = train_idx_list_shifter
+    if kwargs['shifter_5050']==False:
+        gss = GroupShuffleSplit(n_splits=NKfold, train_size=test_train_size, random_state=42)
+        nT = data['model_nsp'].shape[0]
+        groups = np.hstack([i*np.ones(int((frac*i)*nT) - int((frac*(i-1))*nT)) for i in range(1,int(1/frac)+1)])
+
+        train_idx_list=[]
+        test_idx_list = []
+        for train_idx, test_idx in gss.split(np.arange(data['model_nsp'].shape[0]), groups=groups):
+            train_idx_list.append(train_idx)
+            test_idx_list.append(test_idx)
+    else:
+        ##### Need to fix 50/50 splitting ###################
+        # gss = GroupShuffleSplit(n_splits=NKfold, train_size=shifter_train_size, random_state=42)
+        np.random.seed(42)
+        nT = data['model_nsp'].shape[0]
+        if kwargs['shifter_5050']:
+            shifter_train_size = .5
+        groups = np.hstack([i*np.ones(int((frac*i)*nT) - int((frac*(i-1))*nT)) for i in range(1,int(1/frac)+1)])
+        train_idx_list_shifter=[]
+        test_idx_list_shifter=[]
+        train_idx_list=[]
+        test_idx_list = []
+        for Kfold in np.arange(NKfold):
+            glist = np.arange(1,1/frac+1)
+            shifter_groups = np.random.choice(glist,size=int((1/frac)*shifter_train_size),replace=False)
+            idx = np.arange(nT)
+            sampled_inds = np.any(np.array([groups==shifter_groups[n] for n in np.arange(len(shifter_groups))]),axis=0)
+            train_idx_list_shifter.append(idx[sampled_inds])
+            test_idx_list_shifter.append(idx[~sampled_inds])
+            glist=glist[~np.any(np.array([glist==shifter_groups[n] for n in np.arange(len(shifter_groups))]),axis=0)]
+            
+            if kwargs['train_shifter']==False:
+                train_groups = np.random.choice(glist,size=int(len(glist)*test_train_size),replace=False)
+                train_idx = np.any(np.array([groups==train_groups[n] for n in np.arange(len(train_groups))]),axis=0)
+                train_idx_list.append(idx[train_idx])
+                test_idx_list.append(idx[(~train_idx)&(~sampled_inds)])
             else:
-                train_idx_list = train_idx_list_shifter
-                test_idx_list  = test_idx_list_shifter
+                if kwargs['shifter_5050']:
+                    train_idx_list = test_idx_list_shifter
+                    test_idx_list  = train_idx_list_shifter
+                else:
+                    train_idx_list = train_idx_list_shifter
+                    test_idx_list  = test_idx_list_shifter
 
     if thresh_cells:
         print('Tot_units: {}'.format(data['unit_nums'].shape))
