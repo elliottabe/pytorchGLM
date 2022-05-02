@@ -41,6 +41,7 @@ def arg_parser(jupyter=False):
     parser.add_argument('--train_shifter', type=str_to_bool, default=False)
     parser.add_argument('--complex', type=str_to_bool, default=False)
     parser.add_argument('--shifter_5050', type=str_to_bool, default=False)
+    parser.add_argument('--shifter_5050_run', type=str_to_bool, default=False)
     parser.add_argument('--thresh_cells', type=str_to_bool, default=True)
     parser.add_argument('--SimRF', type=str_to_bool, default=False)
     parser.add_argument('--Kfold', type=int, default=0)
@@ -121,9 +122,9 @@ def get_model(input_size, output_size, meanbias, MovModel, device, l, a, params,
         optimizer = optim.Adam(params=[{'params': [param for name, param in l1.posNN.named_parameters() if 'weight' in name],'lr':params['lr_m'][1]},
                                        {'params': [param for name, param in l1.posNN.named_parameters() if 'bias' in name],'lr':params['lr_b'][1]},])
     
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=int(params['Nepochs']/5))
+    # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=int(params['Nepochs']/5))
     # scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=.9999)
-    # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,T_max=int(params['Nepochs']/5))
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,T_max=int(params['Nepochs']/5))
     # scheduler = None
     return l1, optimizer, scheduler
 
@@ -145,11 +146,12 @@ def get_modeltype(params,load_for_training=False):
         params['save_model_shift'].mkdir(parents=True, exist_ok=True)
         params['NoL1'] = True
         params['do_norm']=True
-        params['model_type'] = model_type + 'Shifter'
+        model_type = model_type + 'Shifter'
         if params['shifter_5050']:
-            model_type = model_type + '1'
-        else: 
-            model_type = model_type + '0'
+            if params['shifter_5050_run']:
+                model_type = model_type + '1'
+            else: 
+                model_type = model_type + '0'
     elif params['NoShifter']:
         model_type = model_type + 'NoShifter'
     
@@ -295,7 +297,7 @@ def load_GLM_data(data, params, train_idx, test_idx, move_medwin=7):
         #     params['lambdas_m'] = np.hstack((0, np.logspace(-2, 3, 20)))
         #     params['lambdas'] = np.hstack((0, np.logspace(-2, 3, 20)))
         #     params['nlam'] = len(params['lambdas'])
-        params['alpha_l'] = np.array([0])
+        params['alpha_l'] = np.array([None])
         params['lambdas'] = np.array([0])
         params['lambdas_m'] = np.array([0])
         params['nlam'] = len(params['lambdas'])
@@ -313,7 +315,7 @@ def load_GLM_data(data, params, train_idx, test_idx, move_medwin=7):
         params['move_features'] = None
         params['alphas'] = np.array([.0001 if params['NoL1']==False else None])
         if params['reg_lap']:
-            params['alpha_l'] = np.hstack((0, np.logspace(1, 5, 20,base=10)))
+            params['alpha_l'] = np.hstack((0, np.logspace(2, 9, 20,base=10)))
             params['nlam'] = len(params['alpha_l'])
         else:
             params['alpha_l'] = np.array([0])
@@ -347,14 +349,14 @@ def load_GLM_data(data, params, train_idx, test_idx, move_medwin=7):
         params['lr_m'] = [1e-6, 1e-3]
         params['lr_b'] = [1e-6, 1e-3]
 
-    if (params['reg_lap']) & (params['MovModel']!=0):
+    if (params['reg_lap']) & (params['MovModel']==1):
         #smoothness prior
         import scipy.sparse as sparse
         import scipy.linalg as linalg
 
         consecutive = np.ones((params['nk'],1))
-        consecutive[params['nks'][1]-1::params['nks'][1]] = 0;
-        diff = np.zeros((1,2)); diff[0,0] = -1; diff[0,1]= 1;
+        consecutive[params['nks'][1]-1::params['nks'][1]] = 0
+        diff = np.zeros((1,2)); diff[0,0] = -1; diff[0,1]= 1
         Dxx = sparse.diags((consecutive @ diff).T, np.array([0, 1]), (params['nk']-1,params['nk']))
         Dxy = sparse.diags((np.ones((params['nk'],1))@ diff).T, np.array([0, params['nks'][1]]), (params['nk'] - params['nks'][1], params['nk']))
         Dx = Dxx.T @ Dxx + Dxy.T @ Dxy
@@ -387,12 +389,15 @@ def load_params(MovModel,Kfolds:int,args,file_dict=None,debug=False):
     fig_dir.mkdir(parents=True, exist_ok=True)
 
     exp = Experiment(name='MovModel{}'.format(MovModel),
-                     save_dir=save_dir / 'Shifter_TrTe_testing2', #'GLM_Network',#
+                     save_dir=save_dir / 'RevisionSims', #'Shifter_TrTe_testing2', #'GLM_Network',#
                      debug=debug,
                      version=Kfolds)
     save_model = exp.save_dir / exp.name / 'version_{}'.format(Kfolds)
     save_model_Vis = exp.save_dir / 'MovModel1' /'version_{}'.format(Kfolds)
-
+    save_dir_fm_exp = save_dir_fm / exp.save_dir.name
+    save_dir_fm_exp.mkdir(parents=True, exist_ok=True)
+    save_dir_hf_exp = save_dir_hf / exp.save_dir.name
+    save_dir_hf_exp.mkdir(parents=True, exist_ok=True)
     params = {
         'Nepochs':                  args['Nepochs'],
         'model_dt':                 .05,
@@ -400,7 +405,6 @@ def load_params(MovModel,Kfolds:int,args,file_dict=None,debug=False):
         'do_norm':                  args['do_norm'],
         'do_worldcam_correction':   False,
         'lag_list':                 [-2,-1,0,1,2], #[0],#
-        'shift_hidden':             20,
         'free_move':                free_move,
         'stim_type':                stim_type,
         'base_dir':                 base_dir,
@@ -433,6 +437,9 @@ def load_params(MovModel,Kfolds:int,args,file_dict=None,debug=False):
         'complex':                  args['complex'],
         'shifter_5050':             args['shifter_5050'],
         'shifter_train_size':       .9,
+        'shift_hidden':             20,
+        'shifter_5050_run':         args['shifter_5050_run'],
+
     }
 
     params['nt_glm_lag']=len(params['lag_list'])
@@ -514,7 +521,8 @@ if __name__ == '__main__':
         data = load_Kfold_data(data,train_idx,test_idx,params)
 
         params, xtr, xtrm, xte, xtem, ytr, yte, shift_in_tr, shift_in_te, input_size, output_size, meanbias, model_move = load_GLM_data(data, params, train_idx, test_idx)
-        print('Model: {}, LinMix: {}, move_features: {}, Ncells: {}, train_shifter: {}'.format(params['MovModel'],params['LinMix'],params['move_features'],params['Ncells'],params['train_shifter']))
+        print('Model: {}, LinMix: {}, move_features: {}, Ncells: {}, train_shifter: {}, NoL1: {}, NoL2: {}, reg_lap: {}, comples: {}'.format(params['MovModel'],params['LinMix'],params['move_features'],params['Ncells'],params['train_shifter'],
+                                                                                                                                            params['NoL1'],params['NoL2'],params['reg_lap'],params['complex']))
         
         GLM_CV = {}
         GLM_CV['loss_regcv']      = np.zeros((params['nalph'], params['nlam'], output_size))
@@ -550,7 +558,7 @@ if __name__ == '__main__':
                 GLM_CV['vloss_trace_all'][a, l] = vloss_trace.T
                 
                 pred = l1(xte, xtem, shift_in_te)
-                GLM_CV['loss_regcv'][a, l] = l1.loss(pred, yte).cpu().detach().numpy()
+                GLM_CV['loss_regcv'][a, l] = np.mean(vloss_trace.T[:,-10:],axis=-1) # l1.loss(pred, yte).cpu().detach().numpy()
                 GLM_CV['pred_cv'][a, l] = pred.detach().cpu().numpy().squeeze().T
                 out = l1(xtr, xtrm, shift_in_tr)
                 GLM_CV['out_cv'][a, l] = out.detach().cpu().numpy().squeeze().T

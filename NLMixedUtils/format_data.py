@@ -264,8 +264,13 @@ def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, h
         if file_dict['imu'] is not None:
             print('opening imu data')
             imu_data = xr.open_dataset(file_dict['imu'])
-            accT = imu_data.IMU_data.sample # imu timestamps
-            acc_chans = imu_data.IMU_data # imu dample data
+            try:
+                accT = imu_data.IMU_data.sample # imu timestamps
+                acc_chans = imu_data.IMU_data # imu dample data
+            except AttributeError:
+                accT = imu_data.__xarray_dataarray_variable__.sample
+                acc_chans = imu_data.__xarray_dataarray_variable__
+            
             # raw gyro values
             gx = np.array(acc_chans.sel(channel='gyro_x_raw'))
             gy = np.array(acc_chans.sel(channel='gyro_y_raw'))
@@ -346,7 +351,7 @@ def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, h
         if worldT[0]<-600:
             worldT = worldT + 8*60*60
         if free_move is True and has_imu is True:
-            accTraw = imu_data.IMU_data.sample - ephysT0
+            accTraw = accT - ephysT0
         if free_move is False and has_mouse is True:
             speedT = spd_tstamps - ephysT0
         # if free_move is True:
@@ -650,8 +655,8 @@ def load_train_test(file_dict, save_dir, model_dt=.1, frac=.1, shifter_train_siz
         # gss = GroupShuffleSplit(n_splits=NKfold, train_size=shifter_train_size, random_state=42)
         np.random.seed(42)
         nT = data['model_nsp'].shape[0]
-        if kwargs['shifter_5050']:
-            shifter_train_size = .5
+        
+        shifter_train_size = .5
         groups = np.hstack([i*np.ones(int((frac*i)*nT) - int((frac*(i-1))*nT)) for i in range(1,int(1/frac)+1)])
         train_idx_list_shifter=[]
         test_idx_list_shifter=[]
@@ -672,7 +677,7 @@ def load_train_test(file_dict, save_dir, model_dt=.1, frac=.1, shifter_train_siz
                 train_idx_list.append(idx[train_idx])
                 test_idx_list.append(idx[(~train_idx)&(~sampled_inds)])
             else:
-                if kwargs['shifter_5050']:
+                if kwargs['shifter_5050_run']:
                     train_idx_list = test_idx_list_shifter
                     test_idx_list  = train_idx_list_shifter
                 else:
@@ -832,17 +837,6 @@ def consecutive(data, stepsize=1):
     return np.split(data, np.where(np.diff(data) != stepsize)[0]+1)
 
 
-def arg_parser():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--free_move', type=str_to_bool, default=True)
-    parser.add_argument('--prey_cap', type=str_to_bool, default=False)
-    parser.add_argument('--date_ani', type=str, default='102821/J570LT')#'070921/J553RT')
-    parser.add_argument('--save_dir', type=str, default='~/Research/SensoryMotorPred_Data/data_replay/')
-    parser.add_argument('--fig_dir', type=str, default='~/Research/SensoryMotorPred_Data/Figures')
-    parser.add_argument('--data_dir', type=str, default='~/Goeppert/freely_moving_ephys/ephys_recordings/')
-    args = parser.parse_args()
-    return vars(args)
-
 if __name__ == '__main__': 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--free_move', type=str_to_bool, default=True)
@@ -850,7 +844,7 @@ if __name__ == '__main__':
     parser.add_argument('--date_ani', type=str, default='070921/J553RT') # '122021/J581RT')#
     parser.add_argument('--save_dir', type=str, default='~/Research/SensoryMotorPred_Data/data_replay/')
     parser.add_argument('--fig_dir', type=str, default='~/Research/SensoryMotorPred_Data/Figures2')
-    parser.add_argument('--data_dir', type=str, default='~/Goeppert/nlab-nas/freely_moving_ephys/ephys_recordings/')
+    parser.add_argument('--data_dir', type=str, default='~/Goeppert/nlab-nas/Dylan/freely_moving_ephys/ephys_recordings/')
     args = parser.parse_args()
     args = vars(args)
     # pd.set_option('display.max_rows', None)
@@ -869,8 +863,9 @@ if __name__ == '__main__':
         stim_type = fm_dir
     else:
         stim_type = 'hf1_wn'    
-    dates_all = ['070921/J553RT' ,'101521/J559NC','102821/J570LT','110421/J569LT','122021/J581RT'] # '102621/J558NC' '062921/G6HCK1ALTRN',
-    date_ani = args['date_ani']
+    # dates_all = ['070921/J553RT' ,'101521/J559NC','102821/J570LT','110421/J569LT','122021/J581RT'] # '102621/J558NC' '062921/G6HCK1ALTRN',
+    dates_all = ['100821/J559TT', '101621/J559NC', '102721/J558NC', '110421/J558LT','110521/J569LT']
+    date_ani = dates_all[0] #args['date_ani']
     date_ani2 = '_'.join(date_ani.split('/'))
     data_dir = Path(args['data_dir']).expanduser() / date_ani / stim_type 
     save_dir = (Path(args['save_dir']).expanduser() / date_ani / stim_type)

@@ -58,7 +58,7 @@ class LinVisNetwork(nn.Module):
             self.alpha = reg_alph*torch.ones(1).to(device)
         
         self.reg_laplace = reg_laplace
-        if self.reg_laplace != None:
+        if (self.reg_laplace != None) | (lap_M != None):
             self.lalpha = reg_laplace*torch.ones(1).to(device)
             self.lap_M = lap_M.to(device)
 
