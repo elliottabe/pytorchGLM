@@ -25,6 +25,7 @@ def arg_parser(jupyter=False):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--free_move', type=str_to_bool, default=True)
     parser.add_argument('--prey_cap', type=str_to_bool, default=False)
+    parser.add_argument('--fm_dark', type=str_to_bool, default=False)
     parser.add_argument('--date_ani', type=str, default='070921/J553RT') #'122021/J581RT')# '020422/J577RT')#
     parser.add_argument('--save_dir', type=str, default='~/Research/SensoryMotorPred_Data/data2/')
     parser.add_argument('--fig_dir', type=str, default='~/Research/SensoryMotorPred_Data/ReviewFigures')
@@ -122,9 +123,9 @@ def get_model(input_size, output_size, meanbias, MovModel, device, l, a, params,
         optimizer = optim.Adam(params=[{'params': [param for name, param in l1.posNN.named_parameters() if 'weight' in name],'lr':params['lr_m'][1]},
                                        {'params': [param for name, param in l1.posNN.named_parameters() if 'bias' in name],'lr':params['lr_b'][1]},])
     
-    # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=int(params['Nepochs']/5))
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=int(params['Nepochs']/5))
     # scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=.9999)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,T_max=int(params['Nepochs']/5))
+    # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,T_max=int(params['Nepochs']/2))
     # scheduler = None
     return l1, optimizer, scheduler
 
@@ -314,16 +315,16 @@ def load_GLM_data(data, params, train_idx, test_idx, move_medwin=7):
         xtem = None
         params['move_features'] = None
         params['alphas'] = np.array([.0001 if params['NoL1']==False else None])
-        if params['reg_lap']:
-            params['alpha_l'] = np.hstack((0, np.logspace(2, 9, 20,base=10)))
-            params['nlam'] = len(params['alpha_l'])
-        else:
-            params['alpha_l'] = np.array([0])
         if params['NoL2']:
             params['lambdas'] = np.array([0])
         else:
-            params['lambdas'] = np.hstack((0, np.logspace(-2, 3, 20)))
+            params['lambdas'] = np.hstack((np.logspace(-2, 3, 20)))
             params['nlam'] = len(params['lambdas'])
+        if params['reg_lap']:
+            params['alpha_l'] = np.hstack((np.logspace(2, 8, 20,base=10)))
+            params['nlam'] = len(params['alpha_l'])
+        else:
+            params['alpha_l'] = np.array(params['nlam']*[None])
         params['nalph'] = len(params['alphas'])
         params['lambdas_m'] = np.array(params['nlam']*[None])
         params['alphas_m'] = np.array(params['nalph']*[None])
@@ -339,7 +340,7 @@ def load_GLM_data(data, params, train_idx, test_idx, move_medwin=7):
         if params['NoL2']:
             params['lambdas'] = np.array([0])
         else:
-            params['lambdas'] = np.hstack((0, np.logspace(-2, 3, 20)))
+            params['lambdas'] = np.hstack((np.logspace(-2, 3, 20)))
         params['nalph'] = len(params['alphas'])
         params['alphas_m'] = np.array(params['nalph']*[None])
         params['alpha_l'] = np.array([None])
@@ -353,7 +354,8 @@ def load_GLM_data(data, params, train_idx, test_idx, move_medwin=7):
         #smoothness prior
         import scipy.sparse as sparse
         import scipy.linalg as linalg
-
+        
+        Imat = np.eye(params['nk'])
         consecutive = np.ones((params['nk'],1))
         consecutive[params['nks'][1]-1::params['nks'][1]] = 0
         diff = np.zeros((1,2)); diff[0,0] = -1; diff[0,1]= 1
@@ -361,7 +363,8 @@ def load_GLM_data(data, params, train_idx, test_idx, move_medwin=7):
         Dxy = sparse.diags((np.ones((params['nk'],1))@ diff).T, np.array([0, params['nks'][1]]), (params['nk'] - params['nks'][1], params['nk']))
         Dx = Dxx.T @ Dxx + Dxy.T @ Dxy
         D  = linalg.block_diag(Dx.toarray())
-        params['lap_M'] = torch.from_numpy(D.astype(np.float32))
+        Cinv = D #+ Imat
+        params['lap_M'] = torch.from_numpy(Cinv.astype(np.float32))
     else:
         params['lap_M'] = None
 
@@ -370,7 +373,12 @@ def load_GLM_data(data, params, train_idx, test_idx, move_medwin=7):
 def load_params(MovModel,Kfolds:int,args,file_dict=None,debug=False):
 
     free_move = args['free_move']
-    fm_dir = 'fm1' if args['prey_cap']==False else 'fm1_prey'
+    if args['prey_cap']:
+        fm_dir = 'fm1_prey'
+    elif args['fm_dark']:
+        fm_dir = 'fm1_dark'
+    else:
+        fm_dir = 'fm1'
     if args['free_move']:
         stim_type = fm_dir
     else:
@@ -571,8 +579,8 @@ if __name__ == '__main__':
                 if params['train_shifter']:
                     torch.save({'reg_alph': reg_alph, 'reg_lam':l, 'model_state_dict': l1.state_dict(),'optimizer_state_dict': optimizer.state_dict(),}, (params['save_model_shift'] / model_name))
                 
-        if (params['MovModel'] ==1) & (params['NoL2']==False):
-            GLM_CV['loss_regcv'][:, 0, :] = np.nan
+        # if (params['MovModel'] ==1) & (params['NoL2']==False):
+        #     GLM_CV['loss_regcv'][:, 0, :] = np.nan
         if params['reg_lap']:
             GLM_CV['loss_regcv'][GLM_CV['loss_regcv']<0] = np.nan
         malph, mlam, cellnum = np.where(GLM_CV['loss_regcv'] == np.nanmin(GLM_CV['loss_regcv'], axis=(0, 1), keepdims=True))

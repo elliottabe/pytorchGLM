@@ -58,7 +58,7 @@ class LinVisNetwork(nn.Module):
             self.alpha = reg_alph*torch.ones(1).to(device)
         
         self.reg_laplace = reg_laplace
-        if (self.reg_laplace != None) | (lap_M != None):
+        if (self.reg_laplace != None) & (lap_M != None):
             self.lalpha = reg_laplace*torch.ones(1).to(device)
             self.lap_M = lap_M.to(device)
 
@@ -117,7 +117,7 @@ class LinVisNetwork(nn.Module):
             if self.LinMix==True:
                 output = output + self.posNN['Layer0'](move_input)
             else:
-                move_out = self.posNN['Layer0'](move_input)
+                move_out = torch.abs(self.posNN['Layer0'](move_input))
                 # move_out = self.activations['SoftPlus'](move_out)
                 # move_out = torch.exp(move_out)
                 output = output*move_out
@@ -137,7 +137,7 @@ class LinVisNetwork(nn.Module):
                 l1_reg0 = 0
                 l1_reg1 = 0
             if self.reg_alphm != None:
-                l1_regm = self.alpha_m*(torch.linalg.norm(self.weight[:,-self.move_features:],axis=1,ord=1))
+                l1_regm = self.alpha_m*(torch.linalg.norm(self.posNN['Layer0'].weight,axis=1,ord=1))
             else: 
                 l1_regm = 0
             loss_vec = loss_vec + l1_reg0 + l1_reg1 + l1_regm

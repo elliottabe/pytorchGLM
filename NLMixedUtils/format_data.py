@@ -379,6 +379,7 @@ def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, h
             offset0    = accT_correction['offset0']
             drift_rate = accT_correction['drift_rate']
             accT = accTraw - (offset0 + accTraw*drift_rate)
+            found_good_offset = True
         else:
             if (file_dict['imu'] is not None):
                 print('checking accelerometer / eye temporal alignment')
@@ -841,6 +842,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--free_move', type=str_to_bool, default=True)
     parser.add_argument('--prey_cap', type=str_to_bool, default=False)
+    parser.add_argument('--fm_dark', type=str_to_bool, default=True)
     parser.add_argument('--date_ani', type=str, default='070921/J553RT') # '122021/J581RT')#
     parser.add_argument('--save_dir', type=str, default='~/Research/SensoryMotorPred_Data/data_replay/')
     parser.add_argument('--fig_dir', type=str, default='~/Research/SensoryMotorPred_Data/Figures2')
@@ -855,14 +857,20 @@ if __name__ == '__main__':
     # )
 
     model_dt=.025
-    downsamp_vid = 2
+    downsamp_vid = 4
     free_move = True
+    fm_dark = True
     prey_cap=False
-    fm_dir = 'fm1' if prey_cap==False else 'fm1_prey'
-    if free_move:
+    if args['prey_cap']:
+        fm_dir = 'fm1_prey'
+    elif args['fm_dark']:
+        fm_dir = 'fm1_dark'
+    else:
+        fm_dir = 'fm1'
+    if args['free_move']:
         stim_type = fm_dir
     else:
-        stim_type = 'hf1_wn'    
+        stim_type = 'hf1_wn'     
     # dates_all = ['070921/J553RT' ,'101521/J559NC','102821/J570LT','110421/J569LT','122021/J581RT'] # '102621/J558NC' '062921/G6HCK1ALTRN',
     dates_all = ['100821/J559TT', '101621/J559NC', '102721/J558NC', '110421/J558LT','110521/J569LT']
     date_ani = dates_all[0] #args['date_ani']
