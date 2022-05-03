@@ -1,6 +1,7 @@
 import numpy as np
 import seaborn as sns
 import pandas as pd
+import os 
 
 # sns.set_theme(context='talk', font='Arial', color_codes=True) # palette="dark", style='white',
 sns.set_context("talk")
@@ -180,3 +181,9 @@ def str_to_bool(value):
     elif value.lower() in {'True', 'true', 't', '1', 'yes', 'y'}:
         return True
     raise ValueError(f'{value} is not a valid boolean value')
+
+
+def get_freer_gpu():
+    os.system('nvidia-smi -q -d Memory |grep -A4 GPU|grep Free >tmp')
+    memory_available = [int(x.split()[2]) for x in open('tmp', 'r').readlines()]
+    return np.argmax(memory_available)

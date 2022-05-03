@@ -1,6 +1,5 @@
 import argparse
 import logging
-from sympy import false
 import yaml
 from pathlib import Path
 
@@ -18,7 +17,7 @@ from NLMixedUtils.format_data import *
 from NLMixedUtils.models import *
 
 torch.backends.cudnn.benchmark = True
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:{}".format(get_freer_gpu()) if torch.cuda.is_available() else "cpu")
 
 
 def arg_parser(jupyter=False):
@@ -493,6 +492,8 @@ if __name__ == '__main__':
             ignore_reinit_error=True,
             logging_level=logging.ERROR,
         )
+    device = torch.device("cuda:{}".format(get_freer_gpu()) if torch.cuda.is_available() else "cpu")
+    print('Device:',device)
     ModRun = [int(i) for i in args['ModRun'].split(',')] #[0,1,2,3,4] #-1,
     Kfold = args['Kfold']
     for ModelRun in ModRun:
