@@ -257,8 +257,8 @@ def load_GLM_data(data, params, train_idx, test_idx, move_medwin=7):
     params = get_modeltype(params)
     
     if params['complex']:
-        x_train = np.concatenate((x_train,x_train**2),axis=1)
-        x_test = np.concatenate((x_test,x_test**2),axis=1)
+        x_train = np.concatenate((x_train,np.abs(x_train)),axis=1)
+        x_test = np.concatenate((x_test,np.abs(x_test)),axis=1)
         params['nk'] = params['nks'][0]*params['nks'][1]*params['nt_glm_lag']*2
 
     if params['SimRF']:
@@ -395,8 +395,13 @@ def load_params(MovModel,Kfolds:int,args,file_dict=None,debug=False):
     fig_dir = (Path(args['fig_dir']).expanduser()/'Encoding'/date_ani/stim_type)
     fig_dir.mkdir(parents=True, exist_ok=True)
 
+    if args['shifter_5050']:
+        exp_dir_name = 'shifter5050'
+    else:
+        exp_dir_name = 'RevisionSims'
+
     exp = Experiment(name='MovModel{}'.format(MovModel),
-                     save_dir=save_dir / 'RevisionSims', #'Shifter_TrTe_testing2', #'GLM_Network',#
+                     save_dir=save_dir / exp_dir_name, #'Shifter_TrTe_testing2', #'GLM_Network',#
                      debug=debug,
                      version=Kfolds)
     save_model = exp.save_dir / exp.name / 'version_{}'.format(Kfolds)
