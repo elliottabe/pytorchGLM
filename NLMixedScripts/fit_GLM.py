@@ -45,7 +45,7 @@ def arg_parser(jupyter=False):
     parser.add_argument('--thresh_cells', type=str_to_bool, default=True)
     parser.add_argument('--SimRF', type=str_to_bool, default=False)
     parser.add_argument('--Kfold', type=int, default=0)
-    parser.add_argument('--ModRun', type=str,default='-1') # '-1,0,1,2,3,4'
+    parser.add_argument('--ModRun', type=str,default='2') # '-1,0,1,2,3,4'
     parser.add_argument('--shiftn', type=int, default=12)
     parser.add_argument('--Nepochs', type=int, default=10000)
     if jupyter:
@@ -242,7 +242,7 @@ def load_GLM_data(data, params, train_idx, test_idx, move_medwin=7):
         ytr = torch.from_numpy(data['train_nsp'].astype(np.float32)).to(device)
         yte = torch.from_numpy(data['test_nsp'].astype(np.float32)).to(device)
     else:
-        model_vid_sm_shift = ioh5.load(params['save_dir']/'ModelWC_shifted_dt{:03d}_MovModel{:d}.h5'.format(int(params['model_dt']*1000), 1))['model_vid_sm_shift']  # [:,5:-5,5:-5]
+        model_vid_sm_shift = ioh5.load(params['save_dir_fm_exp']/'ModelWC_shifted_dt{:03d}_MovModel{:d}.h5'.format(int(params['model_dt']*1000), 1))['model_vid_sm_shift']  # [:,5:-5,5:-5]
         params['nks'] = np.shape(model_vid_sm_shift)[1:]
         params['nk'] = params['nks'][0]*params['nks'][1]*params['nt_glm_lag']
         rolled_vid = np.hstack([np.roll(model_vid_sm_shift, nframes, axis=0) for nframes in params['lag_list']])  
