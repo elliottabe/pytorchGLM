@@ -137,3 +137,5 @@ dmypy.json
 
 # Ignore Archive
 Archive/
+
+tmp
