@@ -26,15 +26,15 @@ def arg_parser(jupyter=False):
     parser.add_argument('--prey_cap', type=str_to_bool, default=False)
     parser.add_argument('--fm_dark', type=str_to_bool, default=False)
     parser.add_argument('--date_ani', type=str, default='070921/J553RT') #'122021/J581RT')# '020422/J577RT')#
-    parser.add_argument('--save_dir', type=str, default='~/Research/SensoryMotorPred_Data/data2/')
+    parser.add_argument('--save_dir', type=str, default='~/Research/SensoryMotorPred_Data/data3/')
     parser.add_argument('--fig_dir', type=str, default='~/Research/SensoryMotorPred_Data/ReviewFigures')
     parser.add_argument('--data_dir', type=str, default='~/Goeppert/nlab-nas/freely_moving_ephys/ephys_recordings/')
     parser.add_argument('--MovModel', type=int, default=1)
     parser.add_argument('--load_ray', type=str_to_bool, default=False)
     parser.add_argument('--LinMix', type=str_to_bool, default=False)
-    parser.add_argument('--NoL1', type=str_to_bool, default=True)
-    parser.add_argument('--NoL2', type=str_to_bool, default=True)
-    parser.add_argument('--reg_lap', type=str_to_bool, default=True)
+    parser.add_argument('--NoL1', type=str_to_bool, default=False)
+    parser.add_argument('--NoL2', type=str_to_bool, default=False)
+    parser.add_argument('--reg_lap', type=str_to_bool, default=False)
     parser.add_argument('--NoShifter', type=str_to_bool, default=False)
     parser.add_argument('--do_norm', type=str_to_bool, default=True)
     parser.add_argument('--do_shuffle', type=str_to_bool, default=False)
@@ -242,7 +242,7 @@ def load_GLM_data(data, params, train_idx, test_idx, move_medwin=7):
         ytr = torch.from_numpy(data['train_nsp'].astype(np.float32)).to(device)
         yte = torch.from_numpy(data['test_nsp'].astype(np.float32)).to(device)
     else:
-        model_vid_sm_shift = ioh5.load(params['save_dir_fm_exp']/'ModelWC_shifted_dt{:03d}_MovModel{:d}.h5'.format(int(params['model_dt']*1000), 1))['model_vid_sm_shift']  # [:,5:-5,5:-5]
+        model_vid_sm_shift = ioh5.load(params['save_dir']/params['exp_name']/'ModelWC_shifted_dt{:03d}_MovModel{:d}.h5'.format(int(params['model_dt']*1000), 1))['model_vid_sm_shift']  # [:,5:-5,5:-5]
         params['nks'] = np.shape(model_vid_sm_shift)[1:]
         params['nk'] = params['nks'][0]*params['nks'][1]*params['nt_glm_lag']
         rolled_vid = np.hstack([np.roll(model_vid_sm_shift, nframes, axis=0) for nframes in params['lag_list']])  
@@ -696,7 +696,7 @@ if __name__ == '__main__':
             ##### Save HF Shifted World Cam #####
             args['free_move'] = False
             args['train_shifter']=True
-            args['Nepochs'] = 2000
+            args['Nepochs'] = 5000
             params, file_dict, exp = load_params(1,Kfold,args)
             params['lag_list'] = [0]
             params['nt_glm_lag']=len(params['lag_list'])
