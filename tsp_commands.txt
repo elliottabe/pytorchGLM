@@ -1,0 +1,44 @@
+## TSP Code
+
+Normal Runs
+tsp python fit_GLM.py --date_ani='070921/J553RT' --ModRun=4 --complex=False --NoL1=False --NoL2=False --reg_lap=False
+tsp python fit_GLM.py --date_ani='101521/J559NC' --ModRun=4 --complex=False --NoL1=False --NoL2=False --reg_lap=False
+tsp python fit_GLM.py --date_ani='102821/J570LT' --ModRun=4 --complex=False --NoL1=False --NoL2=False --reg_lap=False
+tsp python fit_GLM.py --date_ani='110421/J569LT' --ModRun=4 --complex=False --NoL1=False --NoL2=False --reg_lap=False
+
+Complex
+tsp python fit_GLM.py --date_ani='070921/J553RT' --ModRun=0,1,2,3,4 --complex=True
+tsp python fit_GLM.py --date_ani='101521/J559NC' --ModRun=0,1,2,3,4 --complex=True
+tsp python fit_GLM.py --date_ani='102821/J570LT' --ModRun=0,1,2,3,4 --complex=True
+tsp python fit_GLM.py --date_ani='110421/J569LT' --ModRun=0,1,2,3,4 --complex=True
+
+Shuffle Data
+tsp python fit_GLM.py --date_ani='070921/J553RT' --ModRun=0,1,2,3,4 --do_shuffle=True --NoL1=False --NoL2=False --reg_lap=False
+tsp python fit_GLM.py --date_ani='101521/J559NC' --ModRun=0,1,2,3,4 --do_shuffle=True --NoL1=False --NoL2=False --reg_lap=False
+tsp python fit_GLM.py --date_ani='102821/J570LT' --ModRun=0,1,2,3,4 --do_shuffle=True --NoL1=False --NoL2=False --reg_lap=False
+tsp python fit_GLM.py --date_ani='110421/J569LT' --ModRun=0,1,2,3,4 --do_shuffle=True --NoL1=False --NoL2=False --reg_lap=False
+
+50/50 Shifter
+tsp python fit_GLM.py --date_ani='070921/J553RT' --ModRun=-1,1 --shifter_5050=True --shifter_5050_run=True 
+tsp python fit_GLM.py --date_ani='101521/J559NC' --ModRun=-1,1 --shifter_5050=True --shifter_5050_run=True 
+tsp python fit_GLM.py --date_ani='102821/J570LT' --ModRun=-1,1 --shifter_5050=True --shifter_5050_run=True 
+tsp python fit_GLM.py --date_ani='110421/J569LT' --ModRun=-1,1 --shifter_5050=True --shifter_5050_run=True 
+tsp python fit_GLM.py --date_ani='070921/J553RT' --ModRun=-1,1 --shifter_5050=True --shifter_5050_run=False
+tsp python fit_GLM.py --date_ani='101521/J559NC' --ModRun=-1,1 --shifter_5050=True --shifter_5050_run=False
+tsp python fit_GLM.py --date_ani='102821/J570LT' --ModRun=-1,1 --shifter_5050=True --shifter_5050_run=False
+tsp python fit_GLM.py --date_ani='110421/J569LT' --ModRun=-1,1 --shifter_5050=True --shifter_5050_run=False
+
+NoShifter
+tsp python fit_GLM.py --date_ani='070921/J553RT' --ModRun=1 --complex=False --NoShifter=True
+tsp python fit_GLM.py --date_ani='101521/J559NC' --ModRun=1 --complex=False --NoShifter=True
+tsp python fit_GLM.py --date_ani='102821/J570LT' --ModRun=1 --complex=False --NoShifter=True
+tsp python fit_GLM.py --date_ani='110421/J569LT' --ModRun=1 --complex=False --NoShifter=True
+
+Sim RF
+tsp python fit_GLM.py --date_ani='121521/SimRF' --ModRun=1 --Nepochs=10000
+
+Format Data
+tsp python format_data.py --date_ani='070921/J553RT'
+tsp python format_data.py --date_ani='101521/J559NC'
+tsp python format_data.py --date_ani='102821/J570LT'
+tsp python format_data.py --date_ani='110421/J569LT'

@@ -26,7 +26,7 @@ def arg_parser(jupyter=False):
     parser.add_argument('--prey_cap', type=str_to_bool, default=False)
     parser.add_argument('--fm_dark', type=str_to_bool, default=False)
     parser.add_argument('--date_ani', type=str, default='070921/J553RT') #'122021/J581RT')# '020422/J577RT')#
-    parser.add_argument('--save_dir', type=str, default='~/Research/SensoryMotorPred_Data/data3/')
+    parser.add_argument('--save_dir', type=str, default='~/Research/SensoryMotorPred_Data/data2/')
     parser.add_argument('--fig_dir', type=str, default='~/Research/SensoryMotorPred_Data/ReviewFigures')
     parser.add_argument('--data_dir', type=str, default='~/Goeppert/nlab-nas/freely_moving_ephys/ephys_recordings/')
     parser.add_argument('--MovModel', type=int, default=1)
@@ -416,7 +416,7 @@ def load_params(MovModel,Kfolds:int,args,file_dict=None,debug=False):
         'do_shuffle':               args['do_shuffle'],
         'do_norm':                  args['do_norm'],
         'do_worldcam_correction':   False,
-        'lag_list':                 [-2,-1,0,1,2], #[0],#
+        'lag_list':                 [0],#[-2,-1,0,1,2], #
         'free_move':                free_move,
         'stim_type':                stim_type,
         'base_dir':                 base_dir,
