@@ -26,7 +26,7 @@ def arg_parser(jupyter=False):
     parser.add_argument('--prey_cap', type=str_to_bool, default=False)
     parser.add_argument('--fm_dark', type=str_to_bool, default=False)
     parser.add_argument('--date_ani', type=str, default='070921/J553RT') #'122021/J581RT')# '020422/J577RT')#
-    parser.add_argument('--save_dir', type=str, default='~/Research/SensoryMotorPred_Data/data2/')
+    parser.add_argument('--save_dir', type=str, default='~/Research/SensoryMotorPred_Data/data3/')
     parser.add_argument('--fig_dir', type=str, default='~/Research/SensoryMotorPred_Data/ReviewFigures')
     parser.add_argument('--data_dir', type=str, default='~/Goeppert/nlab-nas/freely_moving_ephys/ephys_recordings/')
     parser.add_argument('--MovModel', type=int, default=1)
@@ -119,8 +119,8 @@ def get_model(input_size, output_size, meanbias, MovModel, device, l, a, params,
             if 'posNN' not in key:
                 state_dict[key] = torch.from_numpy(GLM_LinVis[key].astype(np.float32))
         l1.load_state_dict(state_dict)
-        optimizer = optim.Adam(params=[{'params': [param for name, param in l1.posNN.named_parameters() if 'weight' in name],'lr':params['lr_m'][1]},
-                                       {'params': [param for name, param in l1.posNN.named_parameters() if 'bias' in name],'lr':params['lr_b'][1]},])
+        optimizer = optim.Adam(params=[{'params': [param for name, param in l1.posNN.named_parameters() if 'weight' in name],'lr':params['lr_m'][1],'weight_decay':params['lambdas_m'][l]},])
+                                    #    {'params': [param for name, param in l1.posNN.named_parameters() if 'bias' in name],'lr':params['lr_b'][1]},])
     
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=int(params['Nepochs']/5))
     # scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=.9999)
@@ -338,13 +338,14 @@ def load_GLM_data(data, params, train_idx, test_idx, move_medwin=7):
         params['alphas'] = np.array([None])
         if params['NoL2']:
             params['lambdas'] = np.array([0])
+            params['lambdas_m'] = np.array([0])
         else:
             params['lambdas'] = np.hstack((np.logspace(-2, 3, 20)))
+            params['lambdas_m'] = np.hstack((0,np.logspace(-2, 3, 20)))# np.array([0])
+        params['nlam'] = len(params['lambdas_m'])
         params['nalph'] = len(params['alphas'])
         params['alphas_m'] = np.array(params['nalph']*[None])
-        params['alpha_l'] = np.array([None])
-        params['lambdas_m'] = np.array([0])
-        params['nlam'] = len(params['lambdas_m'])
+        params['alpha_l'] = np.array(params['nlam']*[None])
         params['lr_w'] = [1e-5, 1e-3]
         params['lr_m'] = [1e-6, 1e-3]
         params['lr_b'] = [1e-6, 1e-3]
@@ -416,7 +417,7 @@ def load_params(MovModel,Kfolds:int,args,file_dict=None,debug=False):
         'do_shuffle':               args['do_shuffle'],
         'do_norm':                  args['do_norm'],
         'do_worldcam_correction':   False,
-        'lag_list':                 [0],#[-2,-1,0,1,2], #
+        'lag_list':                 [0],#[-2,-1,0,1,2], # [0],#
         'free_move':                free_move,
         'stim_type':                stim_type,
         'base_dir':                 base_dir,
@@ -535,7 +536,7 @@ if __name__ == '__main__':
         data = load_Kfold_data(data,train_idx,test_idx,params)
 
         params, xtr, xtrm, xte, xtem, ytr, yte, shift_in_tr, shift_in_te, input_size, output_size, meanbias, model_move = load_GLM_data(data, params, train_idx, test_idx)
-        print('Model: {}, LinMix: {}, move_features: {}, Ncells: {}, train_shifter: {}, NoL1: {}, NoL2: {}, reg_lap: {}, comples: {}'.format(params['MovModel'],params['LinMix'],params['move_features'],params['Ncells'],params['train_shifter'],
+        print('Model: {}, LinMix: {}, move_features: {}, Ncells: {}, train_shifter: {}, NoL1: {}, NoL2: {}, reg_lap: {}, complex: {}'.format(params['MovModel'],params['LinMix'],params['move_features'],params['Ncells'],params['train_shifter'],
                                                                                                                                             params['NoL1'],params['NoL2'],params['reg_lap'],params['complex']))
         
         GLM_CV = {}

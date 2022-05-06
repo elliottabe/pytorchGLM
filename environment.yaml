@@ -21,12 +21,12 @@ dependencies:
   - jupyter
   - jupyterlab
   - conda-forge::netCDF4
-  - pytorch::pytorch=1.9
-  - pytorch::torchvision=0.10
-  - nvidia::cudatoolkit=11.1
+  - pytorch::pytorch=>1.9
+  - pytorch::torchvision=>0.10
+  - nvidia::cudatoolkit=>11.1
   - pip:
     - opencv-python
-    - ray[default]==1.7
+    - ray[default]
     - sklearn
     - test_tube
     - kornia
