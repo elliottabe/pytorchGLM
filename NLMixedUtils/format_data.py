@@ -162,6 +162,7 @@ def grab_aligned_data(goodcells, worldT, accT, img_norm, gz, groll, gpitch, th_i
     print('get eye')
     model_th = th_interp(model_t+model_dt/2)
     model_phi = phi_interp(model_t+model_dt/2)
+    model_eyerad = eyerad_interp(model_t+model_dt/2)
     # del thInterp, phiInterp
 
     # get active times
@@ -175,14 +176,12 @@ def grab_aligned_data(goodcells, worldT, accT, img_norm, gz, groll, gpitch, th_i
         model_roll = roll_interp(model_t)
         model_pitch = pitch_interp(model_t)
         model_speed = top_interp(model_t+model_dt/2)
-        model_eyerad = eyerad_interp(model_t+model_dt/2)
     else:
         model_roll   = []
         model_pitch  = []
         model_gz     = []
         model_active = []
         model_speed  = []
-        model_eyerad = []
         use = np.where((np.abs(model_th)<10) & (np.abs(model_phi)<10))[0]
 
     # get video ready for GLM
@@ -252,8 +251,6 @@ def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, h
         plt.close()
         if free_move == True:
             print('opening top data')
-            topT = []
-            top_speed = []
         #     # open the topdown camera nc file
             top_data = xr.open_dataset(file_dict['top'])
             top_speed = top_data.TOP1_props[:,0].data
@@ -262,6 +259,10 @@ def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, h
             # clear from memory
             del top_data
             gc.collect()
+        else: 
+            topT = []
+            top_speed = []
+            
         # load IMU data
         if file_dict['imu'] is not None:
             print('opening imu data')
@@ -569,8 +570,11 @@ def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, h
         else:
             th_interp = interp1d(eyeT, th, bounds_error=False)
             phi_interp = interp1d(eyeT, phi, bounds_error=False)
-            top_interp = interp1d(topT, top_speed, bounds_error=False)
             eyerad_interp = interp1d(eyeT, eyerad, bounds_error=False)
+            if free_move is True:
+                top_interp = interp1d(topT, top_speed, bounds_error=False)
+            else:
+                top_interp = []
 
         ##### Calculating image norm #####
         print('Calculating Image Norm')
