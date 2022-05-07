@@ -38,6 +38,7 @@ def arg_parser(jupyter=False):
     parser.add_argument('--NoShifter', type=str_to_bool, default=False)
     parser.add_argument('--do_norm', type=str_to_bool, default=True)
     parser.add_argument('--do_shuffle', type=str_to_bool, default=False)
+    parser.add_argument('--use_spdpup', type=str_to_bool, default=False)
     parser.add_argument('--train_shifter', type=str_to_bool, default=False)
     parser.add_argument('--complex', type=str_to_bool, default=False)
     parser.add_argument('--shifter_5050', type=str_to_bool, default=False)
@@ -206,9 +207,14 @@ def train_model(xtr,xte,xtrm,xtem,shift_in_tr,shift_in_te,ytr,yte,Nepochs,l1,opt
 def load_GLM_data(data, params, train_idx, test_idx, move_medwin=7):
 
     if params['free_move']:
-        move_train = np.hstack((data['train_th'][:, np.newaxis], data['train_phi'][:, np.newaxis],data['train_pitch'][:, np.newaxis],data['train_roll'][:, np.newaxis],data['train_speed'][:, np.newaxis],data['train_eyerad'][:, np.newaxis]))
-        move_test = np.hstack((data['test_th'][:, np.newaxis], data['test_phi'][:, np.newaxis],data['test_pitch'][:, np.newaxis],data['test_roll'][:, np.newaxis],data['test_speed'][:, np.newaxis],data['test_eyerad'][:, np.newaxis]))
-        model_move = np.hstack((data['model_th'][:, np.newaxis], data['model_phi'][:, np.newaxis],data['model_pitch'][:, np.newaxis],data['model_roll'][:, np.newaxis],data['model_speed'][:, np.newaxis],data['model_eyerad'][:, np.newaxis]))
+        if params['use_spdpup']:
+            move_train = np.hstack((data['train_th'][:, np.newaxis], data['train_phi'][:, np.newaxis],data['train_pitch'][:, np.newaxis],data['train_roll'][:, np.newaxis],data['train_speed'][:, np.newaxis],data['train_eyerad'][:, np.newaxis]))
+            move_test = np.hstack((data['test_th'][:, np.newaxis], data['test_phi'][:, np.newaxis],data['test_pitch'][:, np.newaxis],data['test_roll'][:, np.newaxis],data['test_speed'][:, np.newaxis],data['test_eyerad'][:, np.newaxis]))
+            model_move = np.hstack((data['model_th'][:, np.newaxis], data['model_phi'][:, np.newaxis],data['model_pitch'][:, np.newaxis],data['model_roll'][:, np.newaxis],data['model_speed'][:, np.newaxis],data['model_eyerad'][:, np.newaxis]))
+        else:
+            move_train = np.hstack((data['train_th'][:, np.newaxis], data['train_phi'][:, np.newaxis],data['train_pitch'][:, np.newaxis],data['train_roll'][:, np.newaxis]))
+            move_test = np.hstack((data['test_th'][:, np.newaxis], data['test_phi'][:, np.newaxis],data['test_pitch'][:, np.newaxis],data['test_roll'][:, np.newaxis]))
+            model_move = np.hstack((data['model_th'][:, np.newaxis], data['model_phi'][:, np.newaxis],data['model_pitch'][:, np.newaxis],data['model_roll'][:, np.newaxis]))
     else:
         move_train = np.hstack((data['train_th'][:, np.newaxis], data['train_phi'][:, np.newaxis], data['train_pitch'][:, np.newaxis], np.zeros(data['train_phi'].shape)[:, np.newaxis]))
         move_test = np.hstack((data['test_th'][:, np.newaxis], data['test_phi'][:, np.newaxis], data['test_pitch'][:, np.newaxis], np.zeros(data['test_phi'].shape)[:, np.newaxis]))
@@ -440,6 +446,7 @@ def load_params(MovModel,Kfolds:int,args,file_dict=None,debug=False):
         'NoL1':                     args['NoL1'],
         'NoL2':                     args['NoL2'],
         'reg_lap':                  args['reg_lap'],
+        'use_spdpup':               args['use_spdpup'],
         'SimRF':                    args['SimRF'],
         'date_ani2':                date_ani2,
         'bin_length':               40,
@@ -452,7 +459,6 @@ def load_params(MovModel,Kfolds:int,args,file_dict=None,debug=False):
         'shifter_train_size':       .9,
         'shift_hidden':             20,
         'shifter_5050_run':         args['shifter_5050_run'],
-
     }
 
     params['nt_glm_lag']=len(params['lag_list'])
