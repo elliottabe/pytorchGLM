@@ -28,7 +28,7 @@ def arg_parser(jupyter=False):
     parser.add_argument('--date_ani', type=str, default='070921/J553RT') #'122021/J581RT')# '020422/J577RT')#
     parser.add_argument('--save_dir', type=str, default='~/Research/SensoryMotorPred_Data/data3/')
     parser.add_argument('--fig_dir', type=str, default='~/Research/SensoryMotorPred_Data/ReviewFigures')
-    parser.add_argument('--data_dir', type=str, default='~/Goeppert/nlab-nas/freely_moving_ephys/ephys_recordings/')
+    parser.add_argument('--data_dir', type=str, default='~/Goeppert/nlab-nas/Dylan/freely_moving_ephys/ephys_recordings/')
     parser.add_argument('--MovModel', type=int, default=1)
     parser.add_argument('--load_ray', type=str_to_bool, default=False)
     parser.add_argument('--LinMix', type=str_to_bool, default=False)
@@ -119,8 +119,8 @@ def get_model(input_size, output_size, meanbias, MovModel, device, l, a, params,
             if 'posNN' not in key:
                 state_dict[key] = torch.from_numpy(GLM_LinVis[key].astype(np.float32))
         l1.load_state_dict(state_dict)
-        optimizer = optim.Adam(params=[{'params': [param for name, param in l1.posNN.named_parameters() if 'weight' in name],'lr':params['lr_m'][1],'weight_decay':params['lambdas_m'][l]},])
-                                    #    {'params': [param for name, param in l1.posNN.named_parameters() if 'bias' in name],'lr':params['lr_b'][1]},])
+        optimizer = optim.Adam(params=[{'params': [param for name, param in l1.posNN.named_parameters() if 'weight' in name],'lr':params['lr_m'][1],'weight_decay':params['lambdas_m'][l]},
+                                       {'params': [param for name, param in l1.posNN.named_parameters() if 'bias' in name],'lr':params['lr_b'][1]},])
     
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=int(params['Nepochs']/5))
     # scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=.9999)
@@ -206,15 +206,15 @@ def train_model(xtr,xte,xtrm,xtem,shift_in_tr,shift_in_te,ytr,yte,Nepochs,l1,opt
 def load_GLM_data(data, params, train_idx, test_idx, move_medwin=7):
 
     if params['free_move']:
-        move_train = np.hstack((data['train_th'][:, np.newaxis], data['train_phi'][:, np.newaxis],data['train_pitch'][:, np.newaxis],data['train_roll'][:, np.newaxis]))
-        move_test = np.hstack((data['test_th'][:, np.newaxis], data['test_phi'][:, np.newaxis],data['test_pitch'][:, np.newaxis],data['test_roll'][:, np.newaxis]))
-        model_move = np.hstack((data['model_th'][:, np.newaxis], data['model_phi'][:, np.newaxis],data['model_pitch'][:, np.newaxis],data['model_roll'][:, np.newaxis]))
+        move_train = np.hstack((data['train_th'][:, np.newaxis], data['train_phi'][:, np.newaxis],data['train_pitch'][:, np.newaxis],data['train_roll'][:, np.newaxis]))#,data['train_speed'][:, np.newaxis]))#,data['train_eyerad'][:, np.newaxis]))
+        move_test = np.hstack((data['test_th'][:, np.newaxis], data['test_phi'][:, np.newaxis],data['test_pitch'][:, np.newaxis],data['test_roll'][:, np.newaxis]))#,data['test_speed'][:, np.newaxis]))#,data['test_eyerad'][:, np.newaxis]))
+        model_move = np.hstack((data['model_th'][:, np.newaxis], data['model_phi'][:, np.newaxis],data['model_pitch'][:, np.newaxis],data['model_roll'][:, np.newaxis]))#,data['model_speed'][:, np.newaxis]))#,data['model_eyerad'][:, np.newaxis]))
     else:
         move_train = np.hstack((data['train_th'][:, np.newaxis], data['train_phi'][:, np.newaxis], data['train_pitch'][:, np.newaxis], np.zeros(data['train_phi'].shape)[:, np.newaxis]))
         move_test = np.hstack((data['test_th'][:, np.newaxis], data['test_phi'][:, np.newaxis], data['test_pitch'][:, np.newaxis], np.zeros(data['test_phi'].shape)[:, np.newaxis]))
         model_move = np.hstack((data['model_th'][:, np.newaxis], data['model_phi'][:, np.newaxis], data['model_pitch'][:, np.newaxis], np.zeros(data['model_phi'].shape)[:, np.newaxis]))
 
-    ##### Save dimensions #####    
+    ##### Save dimensions #####
     params['nks'] = np.shape(data['train_vid'])[1:]
     params['nk'] = params['nks'][0]*params['nks'][1]*params['nt_glm_lag']
     # Reshape data (video) into (T*n)xN array
@@ -417,7 +417,7 @@ def load_params(MovModel,Kfolds:int,args,file_dict=None,debug=False):
         'do_shuffle':               args['do_shuffle'],
         'do_norm':                  args['do_norm'],
         'do_worldcam_correction':   False,
-        'lag_list':                 [0],#[-2,-1,0,1,2], # [0],#
+        'lag_list':                 [-2,-1,0,1,2], # [0],#
         'free_move':                free_move,
         'stim_type':                stim_type,
         'base_dir':                 base_dir,

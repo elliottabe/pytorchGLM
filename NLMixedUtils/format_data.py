@@ -143,7 +143,7 @@ def shift_world_pt2(f, dt, world_vid, thInterp, phiInterp, ycorrection, xcorrect
     return world_vid2
 
 
-def grab_aligned_data(goodcells, worldT, accT, img_norm, gz, groll, gpitch, th_interp, phi_interp, free_move=True, model_dt=0.05,pxcrop=5,do_worldcam_correction=True,**kwargs):
+def grab_aligned_data(goodcells, worldT, accT, img_norm, gz, groll, gpitch, th_interp, phi_interp, top_speed, top_interp, eyerad, eyerad_interp, free_move=True, model_dt=0.05,pxcrop=5,do_worldcam_correction=True,**kwargs):
 
     # simplified setup for GLM
     # these are general parameters (spike rates, eye position)
@@ -174,11 +174,15 @@ def grab_aligned_data(goodcells, worldT, accT, img_norm, gz, groll, gpitch, th_i
         pitch_interp = interp1d(accT,gpitch,bounds_error=False)
         model_roll = roll_interp(model_t)
         model_pitch = pitch_interp(model_t)
+        model_speed = top_interp(model_t+model_dt/2)
+        model_eyerad = eyerad_interp(model_t+model_dt/2)
     else:
-        model_roll  = []
-        model_pitch = []
-        model_gz    = []
+        model_roll   = []
+        model_pitch  = []
+        model_gz     = []
         model_active = []
+        model_speed  = []
+        model_eyerad = []
         use = np.where((np.abs(model_th)<10) & (np.abs(model_phi)<10))[0]
 
     # get video ready for GLM
@@ -199,7 +203,7 @@ def grab_aligned_data(goodcells, worldT, accT, img_norm, gz, groll, gpitch, th_i
     model_vid_sm[np.isnan(model_vid_sm)]=0
     del movInterp
     gc.collect()
-    return model_vid_sm, model_nsp, model_t, model_th, model_phi, model_roll, model_pitch, model_active, model_gz
+    return model_vid_sm, model_nsp, model_t, model_th, model_phi, model_roll, model_pitch, model_active, model_gz, model_speed, model_eyerad
 
 def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, has_mouse=False, max_frames=60*60, model_dt=.025, downsamp_vid = 4, do_worldcam_correction=False, reprocess=False, medfiltbins=11, **kwargs):
         
@@ -246,20 +250,18 @@ def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, h
         plt.tight_layout()
         diagnostic_pdf.savefig()
         plt.close()
-        # if free_move == True:
-        #     print('opening top data')
+        if free_move == True:
+            print('opening top data')
+            topT = []
+            top_speed = []
         #     # open the topdown camera nc file
-        #     top_data = xr.open_dataset(file_dict['top'])
-        #     # get the speed of the base of the animal's tail in the topdown tracking
-        #     # most points don't track well enough for this to be done with other parts of animal (e.g. head points)
-        #     topx = top_data.TOP1_pts.sel(point_loc='tailbase_x').values; topy = top_data.TOP1_pts.sel(point_loc='tailbase_y').values
-        #     topdX = np.diff(topx); topdY = np.diff(topy)
-        #     top_speed = np.sqrt(topdX**2, topdY**2) # speed of tailbase in topdown camera
-        #     topT = top_data.timestamps.copy() # read in time timestamps
+            top_data = xr.open_dataset(file_dict['top'])
+            top_speed = top_data.TOP1_props[:,0].data
+            topT = top_data.timestamps.data.copy() # read in time timestamps
         #     top_vid = np.uint8(top_data['TOP1_video']) # read in top video
-        #     # clear from memory
-        #     del top_data
-        #     gc.collect()
+            # clear from memory
+            del top_data
+            gc.collect()
         # load IMU data
         if file_dict['imu'] is not None:
             print('opening imu data')
@@ -340,6 +342,7 @@ def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, h
         # define theta, phi and zero-center
         th = np.array((eye_params.sel(ellipse_params = 'theta'))*180/np.pi)
         phi = np.array((eye_params.sel(ellipse_params = 'phi'))*180/np.pi)
+        eyerad = eye_data.REYE_ellipse_params.sel(ellipse_params = 'longaxis').data
 
         print('adjusting camera times to match ephys')
         # adjust eye/world/top times relative to ephys
@@ -354,8 +357,8 @@ def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, h
             accTraw = accT - ephysT0
         if free_move is False and has_mouse is True:
             speedT = spd_tstamps - ephysT0
-        # if free_move is True:
-            # topT = topT - ephysT0
+        if free_move is True:
+            topT = topT - ephysT0
         
         ##### Clear some memory #####
         del eye_data 
@@ -374,7 +377,7 @@ def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, h
         dEye = np.diff(th)
         accT_correction_file = save_dir/'acct_correction.h5'
         # check accelerometer / eye temporal alignment
-        if (accT_correction_file.exists()) & (reprocess==False):
+        if (accT_correction_file.exists()):# & (reprocess==False):
             accT_correction = ioh5.load(accT_correction_file)
             offset0    = accT_correction['offset0']
             drift_rate = accT_correction['drift_rate']
@@ -563,6 +566,8 @@ def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, h
         else:
             th_interp = interp1d(eyeT, th, bounds_error=False)
             phi_interp = interp1d(eyeT, phi, bounds_error=False)
+            top_interp = interp1d(topT, top_speed, bounds_error=False)
+            eyerad_interp = interp1d(eyeT, eyerad, bounds_error=False)
 
         ##### Calculating image norm #####
         print('Calculating Image Norm')
@@ -582,14 +587,17 @@ def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, h
         print("img_norm duration =", img_norm_duration)
 
         start = time.time()
-        model_vid_sm, model_nsp, model_t, model_th, model_phi, model_roll, model_pitch, model_active, model_gz = grab_aligned_data(
-            goodcells, worldT, accT, img_norm, gz, groll, gpitch, th_interp, phi_interp, free_move=free_move, model_dt=model_dt,do_worldcam_correction=do_worldcam_correction,**kwargs)
+        model_vid_sm, model_nsp, model_t, model_th, model_phi, model_roll, model_pitch, model_active, model_gz, model_speed, model_eyerad = grab_aligned_data(
+            goodcells, worldT, accT, img_norm, gz, groll, gpitch, th_interp, phi_interp, top_speed, top_interp, eyerad, eyerad_interp, 
+            free_move=free_move, model_dt=model_dt,do_worldcam_correction=do_worldcam_correction,**kwargs)
         if free_move:
-            FM_move_avg = np.zeros((2,4))
+            FM_move_avg = np.zeros((2,6))
             FM_move_avg[:,0] = np.array([np.nanmean(model_th),np.nanstd(model_th)])
             FM_move_avg[:,1] = np.array([np.nanmean(model_phi),np.nanstd(model_phi)])
             FM_move_avg[:,2] = np.array([np.nanmean(model_roll),np.nanstd(model_roll)])
             FM_move_avg[:,3] = np.array([np.nanmean(model_pitch),np.nanstd(model_pitch)])
+            FM_move_avg[:,4] = np.array([np.nanmean(model_speed),np.nanmax(model_speed)])
+            FM_move_avg[:,5] = np.array([np.nanmean(model_eyerad),np.nanmax(model_eyerad)])
             np.save(save_dir/'FM_MovAvg_dt{:03d}.npy'.format(int(model_dt*1000)),FM_move_avg)
         ephys_file = save_dir / 'RawEphysData.h5'
         goodcells.to_hdf(ephys_file,key='goodcells', mode='w')
@@ -602,6 +610,8 @@ def load_ephys_data_aligned(file_dict, save_dir, free_move=True, has_imu=True, h
                 'model_pitch': model_pitch,
                 'model_active': model_active,
                 'model_gz': model_gz,
+                'model_speed': model_speed, 
+                'model_eyerad': model_eyerad,
                 'unit_nums': units}
         
         ioh5.save(model_file, data)
@@ -714,6 +724,8 @@ def load_train_test(file_dict, save_dir, model_dt=.1, frac=.1, shifter_train_siz
         if free_move:
             data['model_roll'] = (data['model_roll'] - FM_move_avg[0,2])/FM_move_avg[1,2]
             data['model_pitch'] = (data['model_pitch'] - FM_move_avg[0,3])/FM_move_avg[1,3]
+            # data['model_speed'] = (data['model_speed'])/FM_move_avg[1,4]
+            data['model_eyerad'] = (data['model_eyerad'])/FM_move_avg[1,5]
             data['model_roll'] = medfilt(data['model_roll'],move_medwin)
             data['model_pitch'] = medfilt(data['model_pitch'],move_medwin)
         else:
@@ -721,12 +733,14 @@ def load_train_test(file_dict, save_dir, model_dt=.1, frac=.1, shifter_train_siz
             data['model_pitch'] = (np.zeros(data['model_phi'].shape) - FM_move_avg[0,3])/FM_move_avg[1,3]
     else:
         if free_move:
-            data['model_roll'] = (data['model_roll'] - FM_move_avg[0,2])
-            data['model_pitch'] = (data['model_pitch'] - FM_move_avg[0,3])
-            data['model_roll'] = medfilt(data['model_roll'],move_medwin)
-            data['model_pitch'] = medfilt(data['model_pitch'],move_medwin)
+            data['model_roll']   = (data['model_roll'] - FM_move_avg[0,2])
+            data['model_pitch']  = (data['model_pitch'] - FM_move_avg[0,3])
+            # data['model_speed']  = (data['model_speed'] - FM_move_avg[0,4])
+            data['model_eyerad'] = (data['model_eyerad'] - FM_move_avg[0,5])
+            data['model_roll']   = medfilt(data['model_roll'],move_medwin)
+            data['model_pitch']  = medfilt(data['model_pitch'],move_medwin)
         else:
-            data['model_pitch'] = (np.zeros(data['model_phi'].shape) - FM_move_avg[0,3])
+            data['model_pitch']  = (np.zeros(data['model_phi'].shape) - FM_move_avg[0,3])
             ### 0 - fm_pitch/sd_pitch_FM
     return data,train_idx_list,test_idx_list
 
@@ -743,9 +757,9 @@ def load_Kfold_forPlots(params, file_dict={}, Kfold=0, dataset_type='test',thres
     params['Ncells'] = data['model_nsp'].shape[-1]
 
     if params['free_move']:
-        move_train = np.hstack((data['train_th'][:, np.newaxis], data['train_phi'][:, np.newaxis],data['train_pitch'][:, np.newaxis],data['train_roll'][:, np.newaxis]))
-        move_test = np.hstack((data['test_th'][:, np.newaxis], data['test_phi'][:, np.newaxis],data['test_pitch'][:, np.newaxis],data['test_roll'][:, np.newaxis]))
-        model_move = np.hstack((data['model_th'][:, np.newaxis], data['model_phi'][:, np.newaxis],data['model_pitch'][:, np.newaxis],data['model_roll'][:, np.newaxis]))
+        move_train = np.hstack((data['train_th'][:, np.newaxis], data['train_phi'][:, np.newaxis],data['train_pitch'][:, np.newaxis],data['train_roll'][:, np.newaxis]))#,data['train_speed'][:, np.newaxis],data['train_eyerad'][:, np.newaxis]))
+        move_test = np.hstack((data['test_th'][:, np.newaxis], data['test_phi'][:, np.newaxis],data['test_pitch'][:, np.newaxis],data['test_roll'][:, np.newaxis]))#,data['test_speed'][:, np.newaxis],data['test_eyerad'][:, np.newaxis]))
+        model_move = np.hstack((data['model_th'][:, np.newaxis], data['model_phi'][:, np.newaxis],data['model_pitch'][:, np.newaxis],data['model_roll'][:, np.newaxis]))#,data['model_speed'][:, np.newaxis],data['model_eyerad'][:, np.newaxis]))
         model_move = (model_move - np.nanmean(model_move,axis=0))
         move_test = model_move[test_idx]
         move_train = model_move[train_idx]
@@ -813,6 +827,10 @@ def load_Kfold_data(data,train_idx,test_idx,params):
     data['test_dphi'] = data['model_dphi'][test_idx]
     data['train_gz'] = data['model_gz'][train_idx] if params['free_move'] else []
     data['test_gz'] = data['model_gz'][test_idx] if params['free_move'] else []
+    data['train_speed'] = data['model_speed'][train_idx] if params['free_move'] else []
+    data['test_speed'] = data['model_speed'][test_idx] if params['free_move'] else []
+    data['train_eyerad'] = data['model_eyerad'][train_idx] if params['free_move'] else []
+    data['test_eyerad'] = data['model_eyerad'][test_idx] if params['free_move'] else []
     return data
 
 
@@ -842,9 +860,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--free_move', type=str_to_bool, default=True)
     parser.add_argument('--prey_cap', type=str_to_bool, default=False)
-    parser.add_argument('--fm_dark', type=str_to_bool, default=True)
+    parser.add_argument('--fm_dark', type=str_to_bool, default=False)
     parser.add_argument('--date_ani', type=str, default='070921/J553RT') # '122021/J581RT')#
-    parser.add_argument('--save_dir', type=str, default='~/Research/SensoryMotorPred_Data/data_replay/')
+    parser.add_argument('--save_dir', type=str, default='~/Research/SensoryMotorPred_Data/data4/')
     parser.add_argument('--fig_dir', type=str, default='~/Research/SensoryMotorPred_Data/Figures2')
     parser.add_argument('--data_dir', type=str, default='~/Goeppert/nlab-nas/Dylan/freely_moving_ephys/ephys_recordings/')
     args = parser.parse_args()
@@ -856,10 +874,10 @@ if __name__ == '__main__':
     #     logging_level=logging.ERROR,
     # )
 
-    model_dt=.025
+    model_dt=.05
     downsamp_vid = 4
     free_move = True
-    fm_dark = True
+    fm_dark = False
     prey_cap=False
     if args['prey_cap']:
         fm_dir = 'fm1_prey'
@@ -871,8 +889,8 @@ if __name__ == '__main__':
         stim_type = fm_dir
     else:
         stim_type = 'hf1_wn'     
-    # dates_all = ['070921/J553RT' ,'101521/J559NC','102821/J570LT','110421/J569LT','122021/J581RT'] # '102621/J558NC' '062921/G6HCK1ALTRN',
-    dates_all = ['100821/J559TT', '101621/J559NC', '102721/J558NC', '110421/J558LT','110521/J569LT']
+    dates_all = ['070921/J553RT' ,'101521/J559NC','102821/J570LT','110421/J569LT','122021/J581RT'] # '102621/J558NC' '062921/G6HCK1ALTRN',
+    # dates_all = ['100821/J559TT', '101621/J559NC', '102721/J558NC', '110421/J558LT','110521/J569LT']
     date_ani = dates_all[0] #args['date_ani']
     date_ani2 = '_'.join(date_ani.split('/'))
     data_dir = Path(args['data_dir']).expanduser() / date_ani / stim_type 
@@ -902,5 +920,5 @@ if __name__ == '__main__':
                 'top': list(data_dir.glob('*TOP1.nc'))[0].as_posix() if stim_type == fm_dir else None,
                 'world': list(data_dir.glob('*world.nc'))[0].as_posix(), }
 
-    data = load_ephys_data_aligned(file_dict, save_dir, model_dt=model_dt, free_move=free_move, has_imu=True, has_mouse=False, downsamp_vid=downsamp_vid)
+    data = load_ephys_data_aligned(file_dict, save_dir, model_dt=model_dt, free_move=free_move, has_imu=True, has_mouse=False, downsamp_vid=downsamp_vid, reprocess=True)
     # ray.shutdown()
