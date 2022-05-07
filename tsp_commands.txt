@@ -1,10 +1,10 @@
 ## TSP Code
 
 Normal Runs
-tsp python fit_GLM.py --date_ani='070921/J553RT' --ModRun=2,3 --complex=False --NoL1=False --NoL2=False --reg_lap=False
-tsp python fit_GLM.py --date_ani='101521/J559NC' --ModRun=2,3 --complex=False --NoL1=False --NoL2=False --reg_lap=False
-tsp python fit_GLM.py --date_ani='102821/J570LT' --ModRun=2,3 --complex=False --NoL1=False --NoL2=False --reg_lap=False
-tsp python fit_GLM.py --date_ani='110421/J569LT' --ModRun=2,3 --complex=False --NoL1=False --NoL2=False --reg_lap=False
+tsp python fit_GLM.py --date_ani='070921/J553RT' --ModRun=-1,0,2,3,4 --complex=False --NoL1=False --NoL2=False --reg_lap=False
+tsp python fit_GLM.py --date_ani='101521/J559NC' --ModRun=-1,0,2,3,4 --complex=False --NoL1=False --NoL2=False --reg_lap=False
+tsp python fit_GLM.py --date_ani='102821/J570LT' --ModRun=-1,0,2,3,4 --complex=False --NoL1=False --NoL2=False --reg_lap=False
+tsp python fit_GLM.py --date_ani='110421/J569LT' --ModRun=-1,0,2,3,4 --complex=False --NoL1=False --NoL2=False --reg_lap=False
 
 Complex
 tsp python fit_GLM.py --date_ani='070921/J553RT' --ModRun=2,3 --complex=True

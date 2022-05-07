@@ -724,7 +724,7 @@ def load_train_test(file_dict, save_dir, model_dt=.1, frac=.1, shifter_train_siz
         if free_move:
             data['model_roll'] = (data['model_roll'] - FM_move_avg[0,2])/FM_move_avg[1,2]
             data['model_pitch'] = (data['model_pitch'] - FM_move_avg[0,3])/FM_move_avg[1,3]
-            # data['model_speed'] = (data['model_speed'])/FM_move_avg[1,4]
+            data['model_speed'] = (data['model_speed'])/FM_move_avg[1,4]
             data['model_eyerad'] = (data['model_eyerad'])/FM_move_avg[1,5]
             data['model_roll'] = medfilt(data['model_roll'],move_medwin)
             data['model_pitch'] = medfilt(data['model_pitch'],move_medwin)
@@ -735,13 +735,12 @@ def load_train_test(file_dict, save_dir, model_dt=.1, frac=.1, shifter_train_siz
         if free_move:
             data['model_roll']   = (data['model_roll'] - FM_move_avg[0,2])
             data['model_pitch']  = (data['model_pitch'] - FM_move_avg[0,3])
-            # data['model_speed']  = (data['model_speed'] - FM_move_avg[0,4])
+            data['model_speed']  = (data['model_speed'] - FM_move_avg[0,4])
             data['model_eyerad'] = (data['model_eyerad'] - FM_move_avg[0,5])
             data['model_roll']   = medfilt(data['model_roll'],move_medwin)
             data['model_pitch']  = medfilt(data['model_pitch'],move_medwin)
         else:
             data['model_pitch']  = (np.zeros(data['model_phi'].shape) - FM_move_avg[0,3])
-            ### 0 - fm_pitch/sd_pitch_FM
     return data,train_idx_list,test_idx_list
 
 def load_Kfold_forPlots(params, file_dict={}, Kfold=0, dataset_type='test',thresh_fr = 1, tuning_thresh = .2):
@@ -757,9 +756,9 @@ def load_Kfold_forPlots(params, file_dict={}, Kfold=0, dataset_type='test',thres
     params['Ncells'] = data['model_nsp'].shape[-1]
 
     if params['free_move']:
-        move_train = np.hstack((data['train_th'][:, np.newaxis], data['train_phi'][:, np.newaxis],data['train_pitch'][:, np.newaxis],data['train_roll'][:, np.newaxis]))#,data['train_speed'][:, np.newaxis],data['train_eyerad'][:, np.newaxis]))
-        move_test = np.hstack((data['test_th'][:, np.newaxis], data['test_phi'][:, np.newaxis],data['test_pitch'][:, np.newaxis],data['test_roll'][:, np.newaxis]))#,data['test_speed'][:, np.newaxis],data['test_eyerad'][:, np.newaxis]))
-        model_move = np.hstack((data['model_th'][:, np.newaxis], data['model_phi'][:, np.newaxis],data['model_pitch'][:, np.newaxis],data['model_roll'][:, np.newaxis]))#,data['model_speed'][:, np.newaxis],data['model_eyerad'][:, np.newaxis]))
+        move_train = np.hstack((data['train_th'][:, np.newaxis], data['train_phi'][:, np.newaxis],data['train_pitch'][:, np.newaxis],data['train_roll'][:, np.newaxis],data['train_speed'][:, np.newaxis],data['train_eyerad'][:, np.newaxis]))
+        move_test = np.hstack((data['test_th'][:, np.newaxis], data['test_phi'][:, np.newaxis],data['test_pitch'][:, np.newaxis],data['test_roll'][:, np.newaxis],data['test_speed'][:, np.newaxis],data['test_eyerad'][:, np.newaxis]))
+        model_move = np.hstack((data['model_th'][:, np.newaxis], data['model_phi'][:, np.newaxis],data['model_pitch'][:, np.newaxis],data['model_roll'][:, np.newaxis],data['model_speed'][:, np.newaxis],data['model_eyerad'][:, np.newaxis]))
         model_move = (model_move - np.nanmean(model_move,axis=0))
         move_test = model_move[test_idx]
         move_train = model_move[train_idx]

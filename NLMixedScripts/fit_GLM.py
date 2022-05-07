@@ -26,7 +26,7 @@ def arg_parser(jupyter=False):
     parser.add_argument('--prey_cap', type=str_to_bool, default=False)
     parser.add_argument('--fm_dark', type=str_to_bool, default=False)
     parser.add_argument('--date_ani', type=str, default='070921/J553RT') #'122021/J581RT')# '020422/J577RT')#
-    parser.add_argument('--save_dir', type=str, default='~/Research/SensoryMotorPred_Data/data3/')
+    parser.add_argument('--save_dir', type=str, default='~/Research/SensoryMotorPred_Data/data4/')
     parser.add_argument('--fig_dir', type=str, default='~/Research/SensoryMotorPred_Data/ReviewFigures')
     parser.add_argument('--data_dir', type=str, default='~/Goeppert/nlab-nas/Dylan/freely_moving_ephys/ephys_recordings/')
     parser.add_argument('--MovModel', type=int, default=1)
@@ -206,9 +206,9 @@ def train_model(xtr,xte,xtrm,xtem,shift_in_tr,shift_in_te,ytr,yte,Nepochs,l1,opt
 def load_GLM_data(data, params, train_idx, test_idx, move_medwin=7):
 
     if params['free_move']:
-        move_train = np.hstack((data['train_th'][:, np.newaxis], data['train_phi'][:, np.newaxis],data['train_pitch'][:, np.newaxis],data['train_roll'][:, np.newaxis]))#,data['train_speed'][:, np.newaxis]))#,data['train_eyerad'][:, np.newaxis]))
-        move_test = np.hstack((data['test_th'][:, np.newaxis], data['test_phi'][:, np.newaxis],data['test_pitch'][:, np.newaxis],data['test_roll'][:, np.newaxis]))#,data['test_speed'][:, np.newaxis]))#,data['test_eyerad'][:, np.newaxis]))
-        model_move = np.hstack((data['model_th'][:, np.newaxis], data['model_phi'][:, np.newaxis],data['model_pitch'][:, np.newaxis],data['model_roll'][:, np.newaxis]))#,data['model_speed'][:, np.newaxis]))#,data['model_eyerad'][:, np.newaxis]))
+        move_train = np.hstack((data['train_th'][:, np.newaxis], data['train_phi'][:, np.newaxis],data['train_pitch'][:, np.newaxis],data['train_roll'][:, np.newaxis],data['train_speed'][:, np.newaxis],data['train_eyerad'][:, np.newaxis]))
+        move_test = np.hstack((data['test_th'][:, np.newaxis], data['test_phi'][:, np.newaxis],data['test_pitch'][:, np.newaxis],data['test_roll'][:, np.newaxis],data['test_speed'][:, np.newaxis],data['test_eyerad'][:, np.newaxis]))
+        model_move = np.hstack((data['model_th'][:, np.newaxis], data['model_phi'][:, np.newaxis],data['model_pitch'][:, np.newaxis],data['model_roll'][:, np.newaxis],data['model_speed'][:, np.newaxis],data['model_eyerad'][:, np.newaxis]))
     else:
         move_train = np.hstack((data['train_th'][:, np.newaxis], data['train_phi'][:, np.newaxis], data['train_pitch'][:, np.newaxis], np.zeros(data['train_phi'].shape)[:, np.newaxis]))
         move_test = np.hstack((data['test_th'][:, np.newaxis], data['test_phi'][:, np.newaxis], data['test_pitch'][:, np.newaxis], np.zeros(data['test_phi'].shape)[:, np.newaxis]))
