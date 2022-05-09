@@ -159,7 +159,7 @@ def get_modeltype(params,load_for_training=False):
         model_type = model_type + 'NoShifter'
         
     if params['use_spdpup']:
-        model_type = model_type + 'SpdPup'
+        model_type = model_type + '_SpdPup'
     if params['NoL1']:
         model_type = model_type + '_NoL1'
     if params['NoL2']:
