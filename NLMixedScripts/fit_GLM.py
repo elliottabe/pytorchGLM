@@ -114,6 +114,8 @@ def get_model(input_size, output_size, meanbias, MovModel, device, l, a, params,
         if params['do_shuffle']==True:    
             GLM_LinVis = ioh5.load(params['save_model_Vis']/'GLM_{}_dt{:03d}_T{:02d}_MovModel{:d}_NB{}_Kfold{:02d}_shuffled_best.h5'.format(model_type, int(params['model_dt']*1000), params['nt_glm_lag'], 1, NepochVis, Kfold))
         else:
+            if params['use_spdpup']:
+                model_type
             GLM_LinVis = ioh5.load(params['save_model_Vis']/'GLM_{}_dt{:03d}_T{:02d}_MovModel{:d}_NB{}_Kfold{:02d}_best.h5'.format(model_type, int(params['model_dt']*1000), params['nt_glm_lag'], 1, NepochVis, Kfold))
         state_dict = l1.state_dict()
         for key in state_dict.keys():
@@ -155,7 +157,9 @@ def get_modeltype(params,load_for_training=False):
                 model_type = model_type + '0'
     elif params['NoShifter']:
         model_type = model_type + 'NoShifter'
-    
+        
+    if params['use_spdpup']:
+        model_type = model_type + 'SpdPup'
     if params['NoL1']:
         model_type = model_type + '_NoL1'
     if params['NoL2']:
@@ -404,6 +408,8 @@ def load_params(MovModel,Kfolds:int,args,file_dict=None,debug=False):
 
     if args['shifter_5050']:
         exp_dir_name = 'shifter5050'
+    elif args['complex']:
+        exp_dir_name = 'complex'
     else:
         exp_dir_name = 'RevisionSims'
 
