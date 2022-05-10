@@ -766,12 +766,20 @@ def load_Kfold_forPlots(params, file_dict={}, Kfold=0, dataset_type='test',thres
 
     if params['free_move']:
         if params['use_spdpup']:
-            move_train = np.hstack((data['train_th'][:, np.newaxis], data['train_phi'][:, np.newaxis],data['train_pitch'][:, np.newaxis],data['train_roll'][:, np.newaxis],data['train_speed'][:, np.newaxis],data['train_eyerad'][:, np.newaxis]))
-            move_test = np.hstack((data['test_th'][:, np.newaxis], data['test_phi'][:, np.newaxis],data['test_pitch'][:, np.newaxis],data['test_roll'][:, np.newaxis],data['test_speed'][:, np.newaxis],data['test_eyerad'][:, np.newaxis]))
-            model_move = np.hstack((data['model_th'][:, np.newaxis], data['model_phi'][:, np.newaxis],data['model_pitch'][:, np.newaxis],data['model_roll'][:, np.newaxis],data['model_speed'][:, np.newaxis],data['model_eyerad'][:, np.newaxis]))
-            model_move = (model_move - np.nanmean(model_move,axis=0))
-            move_test = model_move[test_idx]
-            move_train = model_move[train_idx]
+            if params['only_spdpup']:
+                move_train = np.hstack((data['train_speed'][:, np.newaxis],data['train_eyerad'][:, np.newaxis]))
+                move_test = np.hstack((data['test_speed'][:, np.newaxis],data['test_eyerad'][:, np.newaxis]))
+                model_move = np.hstack((data['model_speed'][:, np.newaxis],data['model_eyerad'][:, np.newaxis]))
+                model_move = (model_move - np.nanmean(model_move,axis=0))
+                move_test = model_move[test_idx]
+                move_train = model_move[train_idx]
+            else:
+                move_train = np.hstack((data['train_th'][:, np.newaxis], data['train_phi'][:, np.newaxis],data['train_pitch'][:, np.newaxis],data['train_roll'][:, np.newaxis],data['train_speed'][:, np.newaxis],data['train_eyerad'][:, np.newaxis]))
+                move_test = np.hstack((data['test_th'][:, np.newaxis], data['test_phi'][:, np.newaxis],data['test_pitch'][:, np.newaxis],data['test_roll'][:, np.newaxis],data['test_speed'][:, np.newaxis],data['test_eyerad'][:, np.newaxis]))
+                model_move = np.hstack((data['model_th'][:, np.newaxis], data['model_phi'][:, np.newaxis],data['model_pitch'][:, np.newaxis],data['model_roll'][:, np.newaxis],data['model_speed'][:, np.newaxis],data['model_eyerad'][:, np.newaxis]))
+                model_move = (model_move - np.nanmean(model_move,axis=0))
+                move_test = model_move[test_idx]
+                move_train = model_move[train_idx]
         else:
             move_train = np.hstack((data['train_th'][:, np.newaxis], data['train_phi'][:, np.newaxis],data['train_pitch'][:, np.newaxis],data['train_roll'][:, np.newaxis]))
             move_test = np.hstack((data['test_th'][:, np.newaxis], data['test_phi'][:, np.newaxis],data['test_pitch'][:, np.newaxis],data['test_roll'][:, np.newaxis]))
@@ -843,10 +851,10 @@ def load_Kfold_data(data,train_idx,test_idx,params):
     data['test_dphi'] = data['model_dphi'][test_idx]
     data['train_gz'] = data['model_gz'][train_idx] if params['free_move'] else []
     data['test_gz'] = data['model_gz'][test_idx] if params['free_move'] else []
-    data['train_speed'] = data['model_speed'][train_idx] if params['use_spdpup'] else []
-    data['test_speed'] = data['model_speed'][test_idx] if params['use_spdpup'] else []
-    data['train_eyerad'] = data['model_eyerad'][train_idx] if params['use_spdpup'] else []
-    data['test_eyerad'] = data['model_eyerad'][test_idx] if params['use_spdpup'] else []
+    data['train_speed'] = data['model_speed'][train_idx] if ((params['use_spdpup'])&params['free_move']) else []
+    data['test_speed'] = data['model_speed'][test_idx] if ((params['use_spdpup'])&params['free_move']) else []
+    data['train_eyerad'] = data['model_eyerad'][train_idx] if ((params['use_spdpup'])&params['free_move']) else []
+    data['test_eyerad'] = data['model_eyerad'][test_idx] if ((params['use_spdpup'])&params['free_move']) else []
     return data
 
 

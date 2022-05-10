@@ -39,6 +39,7 @@ def arg_parser(jupyter=False):
     parser.add_argument('--do_norm', type=str_to_bool, default=True)
     parser.add_argument('--do_shuffle', type=str_to_bool, default=False)
     parser.add_argument('--use_spdpup', type=str_to_bool, default=False)
+    parser.add_argument('--only_spdpup', type=str_to_bool, default=False)
     parser.add_argument('--train_shifter', type=str_to_bool, default=False)
     parser.add_argument('--complex', type=str_to_bool, default=False)
     parser.add_argument('--shifter_5050', type=str_to_bool, default=False)
@@ -65,12 +66,15 @@ def get_model(input_size, output_size, meanbias, MovModel, device, l, a, params,
     if (params['train_shifter']==False) & (params['MovModel']!=0) & (params['NoShifter']==False) & (params['SimRF']==False) & (params['do_shuffle']==False):
         state_dict = l1.state_dict()
         best_shift = 'GLM_{}_dt{:03d}_T{:02d}_MovModel{:d}_NB{}_Kfold{:01d}.pth'.format('Pytorch_BestShift',int(params['model_dt']*1000), 1, 1, best_shifter_Nepochs, Kfold)
-        checkpoint = torch.load(params['save_dir']/params['exp_name']/best_shift)
+        if ((params['only_spdpup'])|params['complex']):
+            checkpoint = torch.load(params['save_dir']/params['exp_name_base']/best_shift)
+        else: 
+            checkpoint = torch.load(params['save_dir']/params['exp_name']/best_shift)
         for key in state_dict.keys():
             if 'posNN' not in key:
                 if 'weight' in key:
                     if params['complex']:
-                        state_dict[key] = checkpoint['model_state_dict'][key].repeat(1,params['nt_glm_lag']*2)
+                        state_dict[key] = checkpoint['model_state_dict'][key].repeat(1,params['nt_glm_lag'])
                     else:
                         state_dict[key] = checkpoint['model_state_dict'][key].repeat(1,params['nt_glm_lag'])
                 else:
@@ -157,7 +161,9 @@ def get_modeltype(params,load_for_training=False):
                 model_type = model_type + '0'
     elif params['NoShifter']:
         model_type = model_type + 'NoShifter'
-        
+
+    if params['only_spdpup']:
+        model_type = model_type + '_onlySpdPup'
     if params['use_spdpup']:
         model_type = model_type + '_SpdPup'
     if params['NoL1']:
@@ -212,9 +218,14 @@ def load_GLM_data(data, params, train_idx, test_idx, move_medwin=7):
 
     if params['free_move']:
         if params['use_spdpup']:
-            move_train = np.hstack((data['train_th'][:, np.newaxis], data['train_phi'][:, np.newaxis],data['train_pitch'][:, np.newaxis],data['train_roll'][:, np.newaxis],data['train_speed'][:, np.newaxis],data['train_eyerad'][:, np.newaxis]))
-            move_test = np.hstack((data['test_th'][:, np.newaxis], data['test_phi'][:, np.newaxis],data['test_pitch'][:, np.newaxis],data['test_roll'][:, np.newaxis],data['test_speed'][:, np.newaxis],data['test_eyerad'][:, np.newaxis]))
-            model_move = np.hstack((data['model_th'][:, np.newaxis], data['model_phi'][:, np.newaxis],data['model_pitch'][:, np.newaxis],data['model_roll'][:, np.newaxis],data['model_speed'][:, np.newaxis],data['model_eyerad'][:, np.newaxis]))
+            if params['only_spdpup']:    
+                move_train = np.hstack((data['train_speed'][:, np.newaxis],data['train_eyerad'][:, np.newaxis]))
+                move_test = np.hstack((data['test_speed'][:, np.newaxis],data['test_eyerad'][:, np.newaxis]))
+                model_move = np.hstack((data['model_speed'][:, np.newaxis],data['model_eyerad'][:, np.newaxis]))
+            else:
+                move_train = np.hstack((data['train_th'][:, np.newaxis], data['train_phi'][:, np.newaxis],data['train_pitch'][:, np.newaxis],data['train_roll'][:, np.newaxis],data['train_speed'][:, np.newaxis],data['train_eyerad'][:, np.newaxis]))
+                move_test = np.hstack((data['test_th'][:, np.newaxis], data['test_phi'][:, np.newaxis],data['test_pitch'][:, np.newaxis],data['test_roll'][:, np.newaxis],data['test_speed'][:, np.newaxis],data['test_eyerad'][:, np.newaxis]))
+                model_move = np.hstack((data['model_th'][:, np.newaxis], data['model_phi'][:, np.newaxis],data['model_pitch'][:, np.newaxis],data['model_roll'][:, np.newaxis],data['model_speed'][:, np.newaxis],data['model_eyerad'][:, np.newaxis]))           
         else:
             move_train = np.hstack((data['train_th'][:, np.newaxis], data['train_phi'][:, np.newaxis],data['train_pitch'][:, np.newaxis],data['train_roll'][:, np.newaxis]))
             move_test = np.hstack((data['test_th'][:, np.newaxis], data['test_phi'][:, np.newaxis],data['test_pitch'][:, np.newaxis],data['test_roll'][:, np.newaxis]))
@@ -252,7 +263,10 @@ def load_GLM_data(data, params, train_idx, test_idx, move_medwin=7):
         ytr = torch.from_numpy(data['train_nsp'].astype(np.float32)).to(device)
         yte = torch.from_numpy(data['test_nsp'].astype(np.float32)).to(device)
     else:
-        model_vid_sm_shift = ioh5.load(params['save_dir']/params['exp_name']/'ModelWC_shifted_dt{:03d}_MovModel{:d}.h5'.format(int(params['model_dt']*1000), 1))['model_vid_sm_shift']  # [:,5:-5,5:-5]
+        if ((params['only_spdpup'])|params['complex']):
+            model_vid_sm_shift = ioh5.load(params['save_dir']/params['exp_name_base']/'ModelWC_shifted_dt{:03d}_MovModel{:d}.h5'.format(int(params['model_dt']*1000), 1))['model_vid_sm_shift']  # [:,5:-5,5:-5]
+        else:
+            model_vid_sm_shift = ioh5.load(params['save_dir']/params['exp_name']/'ModelWC_shifted_dt{:03d}_MovModel{:d}.h5'.format(int(params['model_dt']*1000), 1))['model_vid_sm_shift']  # [:,5:-5,5:-5]
         params['nks'] = np.shape(model_vid_sm_shift)[1:]
         params['nk'] = params['nks'][0]*params['nks'][1]*params['nt_glm_lag']
         rolled_vid = np.hstack([np.roll(model_vid_sm_shift, nframes, axis=0) for nframes in params['lag_list']])  
@@ -410,6 +424,8 @@ def load_params(MovModel,Kfolds:int,args,file_dict=None,debug=False):
         exp_dir_name = 'shifter5050'
     elif args['complex']:
         exp_dir_name = 'complex'
+    elif args['only_spdpup']:
+        exp_dir_name = 'OnlySpdPupil'
     else:
         exp_dir_name = 'RevisionSims'
 
@@ -439,6 +455,7 @@ def load_params(MovModel,Kfolds:int,args,file_dict=None,debug=False):
         'save_dir_fm_exp':          save_dir_fm / exp.save_dir.name,
         'save_dir_hf_exp':          save_dir_hf / exp.save_dir.name,
         'exp_name':                 exp.save_dir.name,
+        'exp_name_base':            'RevisionSims',
         'data_dir':                 data_dir,
         'fig_dir':                  fig_dir,
         'save_model':               save_model,
@@ -453,6 +470,7 @@ def load_params(MovModel,Kfolds:int,args,file_dict=None,debug=False):
         'NoL2':                     args['NoL2'],
         'reg_lap':                  args['reg_lap'],
         'use_spdpup':               args['use_spdpup'],
+        'only_spdpup':               args['only_spdpup'],
         'SimRF':                    args['SimRF'],
         'date_ani2':                date_ani2,
         'bin_length':               40,
