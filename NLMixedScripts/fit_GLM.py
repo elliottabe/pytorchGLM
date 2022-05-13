@@ -74,7 +74,7 @@ def get_model(input_size, output_size, meanbias, MovModel, device, l, a, params,
             if 'posNN' not in key:
                 if 'weight' in key:
                     if params['complex']:
-                        state_dict[key] = checkpoint['model_state_dict'][key].repeat(1,params['nt_glm_lag'])
+                        state_dict[key] = checkpoint['model_state_dict'][key].repeat(1,2*params['nt_glm_lag'])
                     else:
                         state_dict[key] = checkpoint['model_state_dict'][key].repeat(1,params['nt_glm_lag'])
                 else:

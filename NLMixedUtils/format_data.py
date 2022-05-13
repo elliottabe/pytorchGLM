@@ -1,3 +1,5 @@
+########## This .py file contains the functions related to formatting data assuming Niell Lab preprocessing pipeline ##########
+
 import os
 import argparse
 import sys 
