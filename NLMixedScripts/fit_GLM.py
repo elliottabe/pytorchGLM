@@ -22,43 +22,133 @@ device = torch.device("cuda:{}".format(get_freer_gpu()) if torch.cuda.is_availab
 
 def arg_parser(jupyter=False):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--free_move', type=str_to_bool, default=True)
-    parser.add_argument('--prey_cap', type=str_to_bool, default=False)
-    parser.add_argument('--fm_dark', type=str_to_bool, default=False)
-    parser.add_argument('--date_ani', type=str, default='070921/J553RT') #'122021/J581RT')# '020422/J577RT')#
-    parser.add_argument('--save_dir', type=str, default='~/Research/SensoryMotorPred_Data/data4/')
-    parser.add_argument('--fig_dir', type=str, default='~/Research/SensoryMotorPred_Data/ReviewFigures')
-    parser.add_argument('--data_dir', type=str, default='~/Goeppert/nlab-nas/Dylan/freely_moving_ephys/ephys_recordings/')
-    parser.add_argument('--MovModel', type=int, default=1)
-    parser.add_argument('--load_ray', type=str_to_bool, default=False)
-    parser.add_argument('--LinMix', type=str_to_bool, default=False)
-    parser.add_argument('--NoL1', type=str_to_bool, default=False)
-    parser.add_argument('--NoL2', type=str_to_bool, default=False)
-    parser.add_argument('--reg_lap', type=str_to_bool, default=False)
-    parser.add_argument('--NoShifter', type=str_to_bool, default=False)
-    parser.add_argument('--do_norm', type=str_to_bool, default=True)
-    parser.add_argument('--do_shuffle', type=str_to_bool, default=False)
-    parser.add_argument('--use_spdpup', type=str_to_bool, default=False)
-    parser.add_argument('--only_spdpup', type=str_to_bool, default=False)
-    parser.add_argument('--train_shifter', type=str_to_bool, default=False)
-    parser.add_argument('--complex', type=str_to_bool, default=False)
-    parser.add_argument('--shifter_5050', type=str_to_bool, default=False)
-    parser.add_argument('--shifter_5050_run', type=str_to_bool, default=False)
-    parser.add_argument('--thresh_cells', type=str_to_bool, default=True)
-    parser.add_argument('--SimRF', type=str_to_bool, default=False)
-    parser.add_argument('--Kfold', type=int, default=0)
-    parser.add_argument('--ModRun', type=str,default='2') # '-1,0,1,2,3,4'
-    parser.add_argument('--shiftn', type=int, default=12)
-    parser.add_argument('--Nepochs', type=int, default=10000)
+    parser.add_argument('--free_move',          type=str_to_bool, default=True)
+    parser.add_argument('--prey_cap',           type=str_to_bool, default=False)
+    parser.add_argument('--fm_dark',            type=str_to_bool, default=False)
+    parser.add_argument('--date_ani',           type=str, default='070921/J553RT') #'122021/J581RT')# '020422/J577RT')#
+    parser.add_argument('--save_dir',           type=str, default='~/Research/SensoryMotorPred_Data/data4/')
+    parser.add_argument('--fig_dir',            type=str, default='~/Research/SensoryMotorPred_Data/ReviewFigures')
+    parser.add_argument('--data_dir',           type=str, default='~/Goeppert/nlab-nas/Dylan/freely_moving_ephys/ephys_recordings/')
+    parser.add_argument('--MovModel',           type=int, default=1)
+    parser.add_argument('--load_ray',           type=str_to_bool, default=False)
+    parser.add_argument('--LinMix',             type=str_to_bool, default=False)
+    parser.add_argument('--NoL1',               type=str_to_bool, default=False)
+    parser.add_argument('--NoL2',               type=str_to_bool, default=False)
+    parser.add_argument('--reg_lap',            type=str_to_bool, default=False)
+    parser.add_argument('--NoShifter',          type=str_to_bool, default=False)
+    parser.add_argument('--do_norm',            type=str_to_bool, default=True)
+    parser.add_argument('--do_shuffle',         type=str_to_bool, default=False)
+    parser.add_argument('--use_spdpup',         type=str_to_bool, default=False)
+    parser.add_argument('--only_spdpup',        type=str_to_bool, default=False)
+    parser.add_argument('--train_shifter',      type=str_to_bool, default=True)
+    parser.add_argument('--complex',            type=str_to_bool, default=True)
+    parser.add_argument('--shifter_5050',       type=str_to_bool, default=False)
+    parser.add_argument('--shifter_5050_run',   type=str_to_bool, default=False)
+    parser.add_argument('--thresh_cells',       type=str_to_bool, default=True)
+    parser.add_argument('--SimRF',              type=str_to_bool, default=False)
+    parser.add_argument('--Kfold',              type=int, default=0)
+    parser.add_argument('--ModRun',             type=str,default='-1') # '-1,0,1,2,3,4'
+    parser.add_argument('--shiftn',             type=int, default=12)
+    parser.add_argument('--Nepochs',            type=int, default=10000)
     if jupyter:
         args = parser.parse_args('')
     else:
         args = parser.parse_args()
     return vars(args)
 
+def get_complex_model(input_size, output_size, meanbias, MovModel, device, l, a, params, NepochVis=10000, best_shifter_Nepochs=5000, Kfold=0, **kwargs):
+    l1 = ComplexVisNetwork(input_size,output_size,
+                        reg_alph=params['alphas'][a],reg_alphm=params['alphas_m'][a],move_features=params['move_features'],
+                        train_shifter=params['train_shifter'],reg_laplace=params['alpha_l'][l], lap_M=params['lap_M'], shift_hidden=params['shift_hidden'],
+                        LinMix=params['LinMix'], device=device,).to(device)
+    if (params['train_shifter']==False) & (params['MovModel']!=0) & (params['NoShifter']==False) & (params['SimRF']==False) & (params['do_shuffle']==False):
+        state_dict = l1.state_dict()
+        best_shift = 'GLM_{}_dt{:03d}_T{:02d}_MovModel{:d}_NB{}_Kfold{:01d}.pth'.format('Pytorch_BestShift',int(params['model_dt']*1000), 1, 1, best_shifter_Nepochs, Kfold)
+        if ((params['only_spdpup'])|params['complex']):
+            checkpoint = torch.load(params['save_dir']/params['exp_name_base']/best_shift)
+        else: 
+            checkpoint = torch.load(params['save_dir']/params['exp_name']/best_shift)
+        for key in state_dict.keys():
+            if 'posNN' not in key:
+                if 'weight' in key:
+                    if params['complex']:
+                        state_dict[key] = checkpoint['model_state_dict'][key].repeat(1,params['nt_glm_lag'])
+                    else:
+                        state_dict[key] = checkpoint['model_state_dict'][key].repeat(1,params['nt_glm_lag'])
+                else:
+                    state_dict[key] = checkpoint['model_state_dict'][key]
+        l1.load_state_dict(state_dict)
+    elif (params['NoShifter']==True) | (params['do_shuffle']==True):
+        pass
+    elif (params['SimRF']==True):
+        SimRF_file = params['save_dir'].parent.parent.parent/'121521/SimRF/fm1/SimRF_withL1_dt050_T01_Model1_NB10000_Kfold00_best.h5'
+        SimRF_data = ioh5.load(SimRF_file)
+        l1.Cell_NN[0].weight.data = torch.from_numpy(SimRF_data['sta'].astype(np.float32).T).to(device)
+        l1.Cell_NN[0].bias.data = torch.from_numpy(SimRF_data['bias_sim'].astype(np.float32)).to(device)
+        # pass
+    else:
+        if meanbias is not None:
+            state_dict = l1.state_dict()
+            state_dict['Cell_NN.0.bias']=meanbias
+            l1.load_state_dict(state_dict)
+    if MovModel == 0: 
+        optimizer = optim.Adam(params=[{'params': [l1.Cell_NN[0].weight],'lr':params['lr_w'][1]}, 
+                                        {'params': [l1.Cell_NN[0].bias],'lr':params['lr_b'][1]},])
+    elif MovModel == 1:
+        if params['train_shifter']:
+            if params['NoL2']:
+                optimizer = optim.Adam(params=[{'params': [l1.Cell_NN[0].weight],'lr':params['lr_w'][1],'weight_decay':0}, 
+                                                {'params': [l1.Cell_NN[1].weight],'lr':params['lr_w'][1],'weight_decay':0}, 
+                                                {'params': [l1.Cell_NN[0].bias],'lr':params['lr_b'][1]},
+                                                {'params': [l1.Cell_NN[1].bias],'lr':params['lr_b'][1]},
+                                                {'params': [l1.A,l1.B],'lr':params['lr_b'][0]},
+                                                {'params': list(l1.shifter_nn.parameters()),'lr': params['lr_shift'][1],'weight_decay':.0001}])
+            else:
+                optimizer = optim.Adam(params=[{'params': [l1.Cell_NN[0].weight],'lr':params['lr_w'][1],'weight_decay':params['lambdas'][l]}, 
+                                                {'params': [l1.Cell_NN[1].weight],'lr':params['lr_w'][1],'weight_decay':params['lambdas'][l]}, 
+                                                {'params': [l1.Cell_NN[0].bias],'lr':params['lr_b'][1]},
+                                                {'params': [l1.Cell_NN[1].bias],'lr':params['lr_b'][1]},
+                                                {'params': [l1.A],'lr':params['lr_b'][0]},
+                                                {'params': [l1.B],'lr':params['lr_b'][0]},
+                                                {'params': list(l1.shifter_nn.parameters()),'lr': params['lr_shift'][1],'weight_decay':.0001}])
+        else:
+            if params['NoL2']:
+                optimizer = optim.Adam(params=[{'params': [l1.Cell_NN[0].weight],'lr':params['lr_w'][1],'weight_decay':0}, 
+                                                {'params': [l1.Cell_NN[1].weight],'lr':params['lr_w'][1],'weight_decay':0}, 
+                                                {'params': [l1.Cell_NN[0].bias],'lr':params['lr_b'][1]},
+                                                {'params': [l1.Cell_NN[1].bias],'lr':params['lr_b'][1]},
+                                                {'params': [l1.A,l1.B],'lr':params['lr_b'][0]},
+                                                ])
+            else:
+                optimizer = optim.Adam(params=[{'params': [l1.Cell_NN[0].weight],'lr':params['lr_w'][1],'weight_decay':params['lambdas'][l]}, 
+                                                {'params': [l1.Cell_NN[1].weight],'lr':params['lr_w'][1],'weight_decay':params['lambdas'][l]}, 
+                                                {'params': [l1.Cell_NN[0].bias],'lr':params['lr_b'][1]},
+                                                {'params': [l1.Cell_NN[1].bias],'lr':params['lr_b'][1]},
+                                                {'params': [l1.A,l1.B],'lr':params['lr_b'][0]},
+                                                ])
+    else:
+        model_type = get_modeltype(params,load_for_training=True)
+        if params['do_shuffle']==True:    
+            GLM_LinVis = ioh5.load(params['save_model_Vis']/'GLM_{}_dt{:03d}_T{:02d}_MovModel{:d}_NB{}_Kfold{:02d}_shuffled_best.h5'.format(model_type, int(params['model_dt']*1000), params['nt_glm_lag'], 1, NepochVis, Kfold))
+        else:
+            if params['use_spdpup']:
+                model_type
+            GLM_LinVis = ioh5.load(params['save_model_Vis']/'GLM_{}_dt{:03d}_T{:02d}_MovModel{:d}_NB{}_Kfold{:02d}_best.h5'.format(model_type, int(params['model_dt']*1000), params['nt_glm_lag'], 1, NepochVis, Kfold))
+        state_dict = l1.state_dict()
+        for key in state_dict.keys():
+            if 'posNN' not in key:
+                state_dict[key] = torch.from_numpy(GLM_LinVis[key].astype(np.float32))
+        l1.load_state_dict(state_dict)
+        optimizer = optim.Adam(params=[{'params': [param for name, param in l1.posNN.named_parameters() if 'weight' in name],'lr':params['lr_m'][1],'weight_decay':params['lambdas_m'][l]},
+                                       {'params': [param for name, param in l1.posNN.named_parameters() if 'bias' in name],'lr':params['lr_b'][1]},])
+    
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=int(params['Nepochs']/5))
+    # scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=.9999)
+    # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,T_max=int(params['Nepochs']/2))
+    # scheduler = None
+    return l1, optimizer, scheduler
 
 def get_model(input_size, output_size, meanbias, MovModel, device, l, a, params, NepochVis=10000, best_shifter_Nepochs=5000, Kfold=0, **kwargs):
-
     l1 = LinVisNetwork(input_size,output_size,
                         reg_alph=params['alphas'][a],reg_alphm=params['alphas_m'][a],move_features=params['move_features'],
                         train_shifter=params['train_shifter'],reg_laplace=params['alpha_l'][l], lap_M=params['lap_M'], shift_hidden=params['shift_hidden'],
@@ -365,7 +455,7 @@ def load_GLM_data(data, params, train_idx, test_idx, move_medwin=7):
             params['lambdas_m'] = np.array([0])
         else:
             params['lambdas'] = np.hstack((np.logspace(-2, 3, 20)))
-            params['lambdas_m'] = np.hstack((0,np.logspace(-2, 3, 20)))# np.array([0])
+            params['lambdas_m'] = np.hstack((np.logspace(-2, 3, 20)))# np.array([0])
         params['nlam'] = len(params['lambdas_m'])
         params['nalph'] = len(params['alphas'])
         params['alphas_m'] = np.array(params['nalph']*[None])
@@ -470,7 +560,7 @@ def load_params(MovModel,Kfolds:int,args,file_dict=None,debug=False):
         'NoL2':                     args['NoL2'],
         'reg_lap':                  args['reg_lap'],
         'use_spdpup':               args['use_spdpup'],
-        'only_spdpup':               args['only_spdpup'],
+        'only_spdpup':              args['only_spdpup'],
         'SimRF':                    args['SimRF'],
         'date_ani2':                date_ani2,
         'bin_length':               40,
@@ -588,7 +678,10 @@ if __name__ == '__main__':
                 pbar = tqdm(range(len(params['lambdas_m'])))
             
             for reg_lam, l in enumerate(pbar):
-                l1,optimizer,scheduler = get_model(input_size, output_size, meanbias, params['MovModel'], device, l, a, params, NepochVis=VisNepochs)
+                if params['complex']:
+                    l1,optimizer,scheduler = get_complex_model(input_size, output_size, meanbias, params['MovModel'], device, l, a, params, NepochVis=VisNepochs)
+                else:
+                    l1,optimizer,scheduler = get_model(input_size, output_size, meanbias, params['MovModel'], device, l, a, params, NepochVis=VisNepochs)
                 if (a==0) & (l==0):
                     for name, p in l1.named_parameters():
                         GLM_CV[name] = np.zeros((params['nalph'],params['nlam'],) + p.shape, dtype=np.float32)
