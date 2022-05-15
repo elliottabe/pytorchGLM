@@ -7,10 +7,10 @@ tsp python fit_GLM.py --date_ani='102821/J570LT' --ModRun=-1 --complex=False --N
 tsp python fit_GLM.py --date_ani='110421/J569LT' --ModRun=-1 --complex=False --NoL1=False --NoL2=False --reg_lap=False
 
 Complex
-tsp python fit_GLM.py --date_ani='070921/J553RT' --ModRun=-1,0,1,2,3,4 --complex=True
-tsp python fit_GLM.py --date_ani='101521/J559NC' --ModRun=-1,0,1,2,3,4 --complex=True
-tsp python fit_GLM.py --date_ani='102821/J570LT' --ModRun=-1,0,1,2,3,4 --complex=True
-tsp python fit_GLM.py --date_ani='110421/J569LT' --ModRun=-1,0,1,2,3,4 --complex=True
+tsp python fit_GLM.py --date_ani='070921/J553RT' --ModRun=-1,1,2,3,4 --complex=True --use_spdpup=True
+tsp python fit_GLM.py --date_ani='101521/J559NC' --ModRun=-1,1,2,3,4 --complex=True --use_spdpup=True
+tsp python fit_GLM.py --date_ani='102821/J570LT' --ModRun=-1,1,2,3,4 --complex=True --use_spdpup=True
+tsp python fit_GLM.py --date_ani='110421/J569LT' --ModRun=-1,1,2,3,4 --complex=True --use_spdpup=True
 
 Shuffle Data
 tsp python fit_GLM.py --date_ani='070921/J553RT' --ModRun=0,1,2,3,4 --do_shuffle=True --NoL1=False --NoL2=False --reg_lap=False
@@ -48,3 +48,5 @@ tsp python format_data.py --date_ani='070921/J553RT'
 tsp python format_data.py --date_ani='101521/J559NC'
 tsp python format_data.py --date_ani='102821/J570LT'
 tsp python format_data.py --date_ani='110421/J569LT'
+
+ rsync -azP picard:/home/eabe/Research/SensoryMotorPred_Data/data4/ /home/seuss/Research/SensoryMotorPred_Data/data4/

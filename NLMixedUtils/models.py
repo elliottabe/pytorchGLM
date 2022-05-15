@@ -197,8 +197,7 @@ class ComplexVisNetwork(nn.Module):
                                       nn.Linear(self.in_features//2, self.N_cells,bias=True),
                                       ])
 
-        self.A = nn.Parameter(torch.ones(self.N_cells,device=device), requires_grad=True)
-        self.B = nn.Parameter(torch.ones(self.N_cells,device=device), requires_grad=True)
+        self.Wc = nn.Parameter(torch.ones(self.N_cells,device=device), requires_grad=True)
         
         self.activations = nn.ModuleDict({'SoftPlus':nn.Softplus(),
                                           'ReLU': nn.ReLU(),})
@@ -263,7 +262,7 @@ class ComplexVisNetwork(nn.Module):
         else:
             output0 = self.Cell_NN[0](inputs[:,y//2:])
             output1 = self.Cell_NN[1](inputs[:,:y//2])
-            output  = self.A*output0 + self.B*output1
+            output  = self.Wc*output0 + (1-self.Wc)*output1
         # Add Vs. Multiplicative
         if move_input != None:
             if self.LinMix==True:

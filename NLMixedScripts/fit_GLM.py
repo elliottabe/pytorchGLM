@@ -47,7 +47,7 @@ def arg_parser(jupyter=False):
     parser.add_argument('--thresh_cells',       type=str_to_bool, default=True)
     parser.add_argument('--SimRF',              type=str_to_bool, default=False)
     parser.add_argument('--Kfold',              type=int, default=0)
-    parser.add_argument('--ModRun',             type=str,default='-1') # '-1,0,1,2,3,4'
+    parser.add_argument('--ModRun',             type=str,default='1') # '-1,0,1,2,3,4'
     parser.add_argument('--shiftn',             type=int, default=12)
     parser.add_argument('--Nepochs',            type=int, default=10000)
     if jupyter:
@@ -64,7 +64,7 @@ def get_complex_model(input_size, output_size, meanbias, MovModel, device, l, a,
     if (params['train_shifter']==False) & (params['MovModel']!=0) & (params['NoShifter']==False) & (params['SimRF']==False) & (params['do_shuffle']==False):
         state_dict = l1.state_dict()
         best_shift = 'GLM_{}_dt{:03d}_T{:02d}_MovModel{:d}_NB{}_Kfold{:01d}.pth'.format('Pytorch_BestShift',int(params['model_dt']*1000), 1, 1, best_shifter_Nepochs, Kfold)
-        if ((params['only_spdpup'])|params['complex']):
+        if ((params['only_spdpup'])):
             checkpoint = torch.load(params['save_dir']/params['exp_name_base']/best_shift)
         else: 
             checkpoint = torch.load(params['save_dir']/params['exp_name']/best_shift)
@@ -101,15 +101,14 @@ def get_complex_model(input_size, output_size, meanbias, MovModel, device, l, a,
                                                 {'params': [l1.Cell_NN[1].weight],'lr':params['lr_w'][1],'weight_decay':0}, 
                                                 {'params': [l1.Cell_NN[0].bias],'lr':params['lr_b'][1]},
                                                 {'params': [l1.Cell_NN[1].bias],'lr':params['lr_b'][1]},
-                                                {'params': [l1.A,l1.B],'lr':params['lr_b'][0]},
+                                                {'params': [l1.Wc],'lr':params['lr_b'][0]},
                                                 {'params': list(l1.shifter_nn.parameters()),'lr': params['lr_shift'][1],'weight_decay':.0001}])
             else:
                 optimizer = optim.Adam(params=[{'params': [l1.Cell_NN[0].weight],'lr':params['lr_w'][1],'weight_decay':params['lambdas'][l]}, 
                                                 {'params': [l1.Cell_NN[1].weight],'lr':params['lr_w'][1],'weight_decay':params['lambdas'][l]}, 
                                                 {'params': [l1.Cell_NN[0].bias],'lr':params['lr_b'][1]},
                                                 {'params': [l1.Cell_NN[1].bias],'lr':params['lr_b'][1]},
-                                                {'params': [l1.A],'lr':params['lr_b'][0]},
-                                                {'params': [l1.B],'lr':params['lr_b'][0]},
+                                                {'params': [l1.Wc],'lr':params['lr_b'][0]},
                                                 {'params': list(l1.shifter_nn.parameters()),'lr': params['lr_shift'][1],'weight_decay':.0001}])
         else:
             if params['NoL2']:
@@ -117,14 +116,14 @@ def get_complex_model(input_size, output_size, meanbias, MovModel, device, l, a,
                                                 {'params': [l1.Cell_NN[1].weight],'lr':params['lr_w'][1],'weight_decay':0}, 
                                                 {'params': [l1.Cell_NN[0].bias],'lr':params['lr_b'][1]},
                                                 {'params': [l1.Cell_NN[1].bias],'lr':params['lr_b'][1]},
-                                                {'params': [l1.A,l1.B],'lr':params['lr_b'][0]},
+                                                {'params': [l1.Wc],'lr':params['lr_b'][0]},
                                                 ])
             else:
                 optimizer = optim.Adam(params=[{'params': [l1.Cell_NN[0].weight],'lr':params['lr_w'][1],'weight_decay':params['lambdas'][l]}, 
                                                 {'params': [l1.Cell_NN[1].weight],'lr':params['lr_w'][1],'weight_decay':params['lambdas'][l]}, 
                                                 {'params': [l1.Cell_NN[0].bias],'lr':params['lr_b'][1]},
                                                 {'params': [l1.Cell_NN[1].bias],'lr':params['lr_b'][1]},
-                                                {'params': [l1.A,l1.B],'lr':params['lr_b'][0]},
+                                                {'params': [l1.Wc],'lr':params['lr_b'][0]},
                                                 ])
     else:
         model_type = get_modeltype(params,load_for_training=True)
