@@ -736,8 +736,8 @@ def load_train_test(file_dict, save_dir, model_dt=.1, frac=.1, shifter_train_siz
             data['model_roll'] = medfilt(data['model_roll'],move_medwin)
             data['model_pitch'] = medfilt(data['model_pitch'],move_medwin)
             if kwargs['use_spdpup']:
-                data['model_speed'] = (data['model_speed'])/FM_move_avg[1,4]
-                data['model_eyerad'] = (data['model_eyerad'])/FM_move_avg[1,5]
+                data['model_speed'] = (data['model_speed']-FM_move_avg[0,4])/FM_move_avg[1,4]
+                data['model_eyerad'] = (data['model_eyerad']-FM_move_avg[0,5])/FM_move_avg[1,5]
         else:
             # data['model_roll'] = (0 - FM_move_avg[0,2])/FM_move_avg[1,2])
             data['model_pitch'] = (np.zeros(data['model_phi'].shape) - FM_move_avg[0,3])/FM_move_avg[1,3]
