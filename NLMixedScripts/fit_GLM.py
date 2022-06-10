@@ -38,10 +38,10 @@ def arg_parser(jupyter=False):
     parser.add_argument('--NoShifter',          type=str_to_bool, default=False)
     parser.add_argument('--do_norm',            type=str_to_bool, default=True)
     parser.add_argument('--do_shuffle',         type=str_to_bool, default=False)
-    parser.add_argument('--use_spdpup',         type=str_to_bool, default=False)
+    parser.add_argument('--use_spdpup',         type=str_to_bool, default=True)
     parser.add_argument('--only_spdpup',        type=str_to_bool, default=False)
     parser.add_argument('--train_shifter',      type=str_to_bool, default=False)
-    parser.add_argument('--complex',            type=str_to_bool, default=False)
+    parser.add_argument('--complex',            type=str_to_bool, default=True)
     parser.add_argument('--residuals',          type=str_to_bool, default=False)
     parser.add_argument('--shifter_5050',       type=str_to_bool, default=False)
     parser.add_argument('--shifter_5050_run',   type=str_to_bool, default=False)
@@ -65,12 +65,12 @@ def get_complex_model(input_size, output_size, meanbias, MovModel, device, l, a,
     if (params['train_shifter']==False) & (params['MovModel']!=0) & (params['NoShifter']==False) & (params['SimRF']==False) & (params['do_shuffle']==False):
         state_dict = l1.state_dict()
         best_shift = 'GLM_{}_dt{:03d}_T{:02d}_MovModel{:d}_NB{}_Kfold{:01d}.pth'.format('Pytorch_BestShift',int(params['model_dt']*1000), 1, 1, best_shifter_Nepochs, Kfold)
-        if ((params['only_spdpup'])):
+        if ((params['only_spdpup'])|params['complex']):
             checkpoint = torch.load(params['save_dir']/params['exp_name_base']/best_shift)
         else: 
             checkpoint = torch.load(params['save_dir']/params['exp_name']/best_shift)
         for key in state_dict.keys():
-            if 'posNN' not in key:
+            if ('posNN' not in key) & ('Wc' not in key):
                 if 'weight' in key:
                     if params['complex']:
                         state_dict[key] = checkpoint['model_state_dict'][key].repeat(1,params['nt_glm_lag'])
@@ -164,7 +164,7 @@ def get_model(input_size, output_size, meanbias, MovModel, device, l, a, params,
             if 'posNN' not in key:
                 if 'weight' in key:
                     if params['complex']:
-                        state_dict[key] = checkpoint['model_state_dict'][key].repeat(1,params['nt_glm_lag'])
+                        state_dict[key] = checkpoint['model_state_dict'][key].repeat(1,2*params['nt_glm_lag'])
                     else:
                         state_dict[key] = checkpoint['model_state_dict'][key].repeat(1,params['nt_glm_lag'])
                 else:
@@ -325,7 +325,7 @@ def load_GLM_data(data, params, train_idx, test_idx, move_medwin=7):
     if params['complex']:
         x_train = np.concatenate((x_train,np.abs(x_train) - np.mean(np.abs(x_train),axis=0)),axis=1)
         x_test = np.concatenate((x_test,np.abs(x_test) - np.mean(np.abs(x_test),axis=0)),axis=1)
-        params['nk'] = params['nks'][0]*params['nks'][1]*params['nt_glm_lag']#*2
+        params['nk'] = params['nks'][0]*params['nks'][1]*params['nt_glm_lag']*2
 
     if params['SimRF']:
         SimRF_file = params['save_dir'].parent.parent.parent/'021522/SimRF/fm1/SimRF_withL1_dt050_T01_Model1_NB10000_Kfold00_best.h5'
@@ -697,7 +697,7 @@ if __name__ == '__main__':
             
             for reg_lam, l in enumerate(pbar):
                 if params['complex']:
-                    l1,optimizer,scheduler = get_complex_model(input_size, output_size, meanbias, params['MovModel'], device, l, a, params, NepochVis=VisNepochs)
+                    # l1,optimizer,scheduler = get_complex_model(input_size, output_size, meanbias, params['MovModel'], device, l, a, params, NepochVis=VisNepochs)
                     l1,optimizer,scheduler = get_model(input_size, output_size, meanbias, params['MovModel'], device, l, a, params, NepochVis=VisNepochs)
                 else:
                     l1,optimizer,scheduler = get_model(input_size, output_size, meanbias, params['MovModel'], device, l, a, params, NepochVis=VisNepochs)
