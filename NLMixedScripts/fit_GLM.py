@@ -38,7 +38,7 @@ def arg_parser(jupyter=False):
     parser.add_argument('--NoShifter',          type=str_to_bool, default=False)
     parser.add_argument('--do_norm',            type=str_to_bool, default=True)
     parser.add_argument('--do_shuffle',         type=str_to_bool, default=False)
-    parser.add_argument('--use_spdpup',         type=str_to_bool, default=True)
+    parser.add_argument('--use_spdpup',         type=str_to_bool, default=False)
     parser.add_argument('--only_spdpup',        type=str_to_bool, default=False)
     parser.add_argument('--train_shifter',      type=str_to_bool, default=False)
     parser.add_argument('--complex',            type=str_to_bool, default=True)
@@ -165,6 +165,8 @@ def get_model(input_size, output_size, meanbias, MovModel, device, l, a, params,
         for key in state_dict.keys():
             if 'posNN' not in key:
                 if 'weight' in key:
+                    if params['crop_input']!=0:
+                        checkpoint['model_state_dict'][key] = checkpoint['model_state_dict'][key].reshape((checkpoint['model_state_dict'][key].shape[0],)+(30,40))[:,params['crop_input']:-params['crop_input'],params['crop_input']:-params['crop_input']].reshape(checkpoint['model_state_dict'][key].shape[0],-1)
                     if params['complex']:
                         state_dict[key] = checkpoint['model_state_dict'][key].repeat(1,2*params['nt_glm_lag'])
                     else:
