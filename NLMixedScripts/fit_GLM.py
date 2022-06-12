@@ -72,6 +72,8 @@ def get_complex_model(input_size, output_size, meanbias, MovModel, device, l, a,
         for key in state_dict.keys():
             if ('posNN' not in key) & ('Wc' not in key):
                 if 'weight' in key:
+                    if params['crop_input']!=0:
+                        checkpoint['model_state_dict'][key] = checkpoint['model_state_dict'][key].reshape(checkpoint['model_state_dict'][key].shape[0],params['nks'])[:,params['crop_input']:-params['crop_input'],params['crop_input']:-params['crop_input']]
                     if params['complex']:
                         state_dict[key] = checkpoint['model_state_dict'][key].repeat(1,params['nt_glm_lag'])
                     else:
@@ -309,6 +311,8 @@ def load_GLM_data(data, params, train_idx, test_idx, move_medwin=7):
             model_vid_sm_shift = ioh5.load(params['save_dir']/params['exp_name_base']/'ModelWC_shifted_dt{:03d}_MovModel{:d}.h5'.format(int(params['model_dt']*1000), 1))['model_vid_sm_shift']  # [:,5:-5,5:-5]
         else:
             model_vid_sm_shift = ioh5.load(params['save_dir']/params['exp_name']/'ModelWC_shifted_dt{:03d}_MovModel{:d}.h5'.format(int(params['model_dt']*1000), 1))['model_vid_sm_shift']  # [:,5:-5,5:-5]
+        if params['crop_input'] != 0:
+            model_vid_sm_shift = model_vid_sm_shift[:,params['crop_input']:-params['crop_input'],params['crop_input']:-params['crop_input']]
         params['nks'] = np.shape(model_vid_sm_shift)[1:]
         params['nk'] = params['nks'][0]*params['nks'][1]*params['nt_glm_lag']
         rolled_vid = np.hstack([np.roll(model_vid_sm_shift, nframes, axis=0) for nframes in params['lag_list']])  
@@ -585,6 +589,7 @@ def load_params(MovModel,Kfolds:int,args,file_dict=None,debug=False):
         'shifter_train_size':       .9,
         'shift_hidden':             20,
         'shifter_5050_run':         args['shifter_5050_run'],
+        'crop_input':               5,
     }
 
     params['nt_glm_lag']=len(params['lag_list'])
