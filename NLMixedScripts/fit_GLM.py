@@ -40,6 +40,7 @@ def arg_parser(jupyter=False):
     parser.add_argument('--do_shuffle',         type=str_to_bool, default=False)
     parser.add_argument('--use_spdpup',         type=str_to_bool, default=False)
     parser.add_argument('--only_spdpup',        type=str_to_bool, default=False)
+    parser.add_argument('--crop_input',         type=str_to_bool, default=False)
     parser.add_argument('--train_shifter',      type=str_to_bool, default=False)
     parser.add_argument('--complex',            type=str_to_bool, default=True)
     parser.add_argument('--residuals',          type=str_to_bool, default=False)
@@ -165,7 +166,7 @@ def get_model(input_size, output_size, meanbias, MovModel, device, l, a, params,
         for key in state_dict.keys():
             if 'posNN' not in key:
                 if 'weight' in key:
-                    if params['crop_input']!=0:
+                    if (params['crop_input']!=0) & ((params['nks'][0]*params['nks'][1]*params['nt_glm_lag'])!=(30*40*params['nt_glm_lag'])):
                         checkpoint['model_state_dict'][key] = checkpoint['model_state_dict'][key].reshape((checkpoint['model_state_dict'][key].shape[0],)+(30,40))[:,params['crop_input']:-params['crop_input'],params['crop_input']:-params['crop_input']].reshape(checkpoint['model_state_dict'][key].shape[0],-1)
                     if params['complex']:
                         state_dict[key] = checkpoint['model_state_dict'][key].repeat(1,2*params['nt_glm_lag'])
@@ -531,6 +532,8 @@ def load_params(MovModel,Kfolds:int,args,file_dict=None,debug=False):
         exp_dir_name = 'complex'
     elif args['only_spdpup']:
         exp_dir_name = 'OnlySpdPupil'
+    elif args['crop_input']:
+        exp_dir_name = 'CropInputs'
     # elif args['residuals']:
     #     exp_dir_name = 'residuals'
     else:
@@ -591,7 +594,7 @@ def load_params(MovModel,Kfolds:int,args,file_dict=None,debug=False):
         'shifter_train_size':       .9,
         'shift_hidden':             20,
         'shifter_5050_run':         args['shifter_5050_run'],
-        'crop_input':               5,
+        'crop_input':               5 if args['crop_input']==True else 0,
     }
 
     params['nt_glm_lag']=len(params['lag_list'])
