@@ -4,25 +4,7 @@ import pandas as pd
 import os 
 
 # sns.set_theme(context='talk', font='Arial', color_codes=True) # palette="dark", style='white',
-sns.set_context("talk")
 
-import matplotlib.pyplot as plt
-import matplotlib as mpl
-
-mpl.rcParams.update({'font.size':         12,
-                     'axes.linewidth':    2,
-                     'xtick.major.size':  3,
-                     'xtick.major.width': 2,
-                     'ytick.major.size':  3,
-                     'ytick.major.width': 2,
-                     'axes.spines.right': False,
-                     'axes.spines.top':   False,
-                     'font.sans-serif':   "Arial",
-                     'font.family':       "sans-serif",
-                     'pdf.fonttype':      42,
-                     'xtick.labelsize': 10,
-                     'ytick.labelsize': 10,
-                    })
 
 ########## Checks if path exists, if not then creates directory ##########
 def check_path(basepath, path):

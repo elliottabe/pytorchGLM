@@ -763,6 +763,8 @@ def load_Kfold_forPlots(params, file_dict={}, Kfold=0, dataset_type='test',thres
     locals().update(data)
     locals().update(params)
     params['nks'] = np.shape(data['model_vid_sm'])[1:]
+    if params['crop_input']!=0:
+        params['nks'] = (params['nks'][0]-2*params['crop_input'],params['nks'][1]-2*params['crop_input'])
     params['nk'] = params['nks'][0]*params['nks'][1]*params['nt_glm_lag']
     params['Ncells'] = data['model_nsp'].shape[-1]
 

@@ -610,7 +610,7 @@ def load_params(MovModel,Kfolds:int,args,file_dict=None,debug=False):
                     'ephys_bin': list(data_dir.glob('*Ephys.bin'))[0].as_posix(),
                     'eye': list(data_dir.glob('*REYE.nc'))[0].as_posix(),
                     'imu': list(data_dir.glob('*imu.nc'))[0].as_posix() if stim_type == fm_dir else None,
-                    'mapping_json': Path('~/Research/Github/FreelyMovingEphys/probes/channel_maps.json').expanduser(),
+                    'mapping_json': Path('~/Research/Github/FreelyMovingEphys/config/channel_maps.json').expanduser(),
                     'mp4': True,
                     'name': date_ani2 + '_control_Rig2_' + stim_type,  # 070921_J553RT
                     'probe_name': 'DB_P128-6',
@@ -618,7 +618,8 @@ def load_params(MovModel,Kfolds:int,args,file_dict=None,debug=False):
                     'speed': list(data_dir.glob('*speed.nc'))[0].as_posix() if stim_type == 'hf1_wn' else None,
                     'stim_type': 'light',
                     'top': list(data_dir.glob('*TOP1.nc'))[0].as_posix() if stim_type == fm_dir else None,
-                    'world': list(data_dir.glob('*world.nc'))[0].as_posix(), }
+                    'world': list(data_dir.glob('*world.nc'))[0].as_posix(), 
+                    'ephys_csv': list(data_dir.glob('*Ephys_BonsaiBoardTS.csv'))[0].as_posix()}
         # file_dict = {}
     if debug==False:
         params2=params.copy()
