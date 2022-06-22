@@ -25,28 +25,28 @@ def arg_parser(jupyter=False):
     parser.add_argument('--free_move',          type=str_to_bool, default=True)
     parser.add_argument('--prey_cap',           type=str_to_bool, default=False)
     parser.add_argument('--fm_dark',            type=str_to_bool, default=False)
-    parser.add_argument('--date_ani',           type=str, default='070921/J553RT') #'122021/J581RT')# '020422/J577RT')#
+    parser.add_argument('--date_ani',           type=str, default='020422/J577RT') #'070921/J553RT' '122021/J581RT')# '020422/J577RT')#
     parser.add_argument('--save_dir',           type=str, default='~/Research/SensoryMotorPred_Data/data4/')
     parser.add_argument('--fig_dir',            type=str, default='~/Research/SensoryMotorPred_Data/ReviewFigures')
     parser.add_argument('--data_dir',           type=str, default='~/Goeppert/nlab-nas/Dylan/freely_moving_ephys/ephys_recordings/')
     parser.add_argument('--MovModel',           type=int, default=1)
+    parser.add_argument('--do_norm',            type=str_to_bool, default=True)
+    parser.add_argument('--thresh_cells',       type=str_to_bool, default=True)
+    parser.add_argument('--crop_input',         type=str_to_bool, default=True)
     parser.add_argument('--load_ray',           type=str_to_bool, default=False)
     parser.add_argument('--LinMix',             type=str_to_bool, default=False)
     parser.add_argument('--NoL1',               type=str_to_bool, default=False)
     parser.add_argument('--NoL2',               type=str_to_bool, default=False)
     parser.add_argument('--reg_lap',            type=str_to_bool, default=False)
     parser.add_argument('--NoShifter',          type=str_to_bool, default=False)
-    parser.add_argument('--do_norm',            type=str_to_bool, default=True)
     parser.add_argument('--do_shuffle',         type=str_to_bool, default=False)
     parser.add_argument('--use_spdpup',         type=str_to_bool, default=False)
     parser.add_argument('--only_spdpup',        type=str_to_bool, default=False)
-    parser.add_argument('--crop_input',         type=str_to_bool, default=False)
     parser.add_argument('--train_shifter',      type=str_to_bool, default=False)
-    parser.add_argument('--complex',            type=str_to_bool, default=True)
+    parser.add_argument('--complex',            type=str_to_bool, default=False)
     parser.add_argument('--residuals',          type=str_to_bool, default=False)
     parser.add_argument('--shifter_5050',       type=str_to_bool, default=False)
     parser.add_argument('--shifter_5050_run',   type=str_to_bool, default=False)
-    parser.add_argument('--thresh_cells',       type=str_to_bool, default=True)
     parser.add_argument('--SimRF',              type=str_to_bool, default=False)
     parser.add_argument('--Kfold',              type=int, default=0)
     parser.add_argument('--ModRun',             type=str,default='1') # '-1,0,1,2,3,4'
@@ -302,13 +302,17 @@ def load_GLM_data(data, params, train_idx, test_idx, move_medwin=7):
         data['train_nsp']=data['train_nsp'][train_range]
         data['test_nsp']=data['test_nsp'][test_range]
     elif params['NoShifter']:
-        rolled_vid = np.hstack([np.roll(data['model_vid_sm'], nframes, axis=0) for nframes in params['lag_list']])
+        if params['crop_input'] != 0:
+            model_vid_sm = data['model_vid_sm'][:,params['crop_input']:-params['crop_input'],params['crop_input']:-params['crop_input']]
+        rolled_vid = np.hstack([np.roll(model_vid_sm, nframes, axis=0) for nframes in params['lag_list']])
         x_train = rolled_vid[train_idx].reshape(len(train_idx), -1).astype(np.float32)
         x_test = rolled_vid[test_idx].reshape(len(test_idx), -1).astype(np.float32)
         shift_in_tr = None
         shift_in_te = None
         ytr = torch.from_numpy(data['train_nsp'].astype(np.float32)).to(device)
         yte = torch.from_numpy(data['test_nsp'].astype(np.float32)).to(device)
+        params['nks'] = np.shape(model_vid_sm)[1:]
+        params['nk'] = params['nks'][0]*params['nks'][1]*params['nt_glm_lag']
     else:
         if ((params['only_spdpup'])|params['complex']):
             model_vid_sm_shift = ioh5.load(params['save_dir']/params['exp_name_base']/'ModelWC_shifted_dt{:03d}_MovModel{:d}.h5'.format(int(params['model_dt']*1000), 1))['model_vid_sm_shift']  # [:,5:-5,5:-5]
@@ -472,10 +476,16 @@ def get_modeltype(params,load_for_training=False):
         model_type = model_type + 'Shifter'
         if params['shifter_5050']:
             if params['shifter_5050_run']:
+                model_type = model_type + 'Train_1'
+            else: 
+                model_type = model_type + 'Train_0'
+    else:
+        if params['shifter_5050']:
+            if params['shifter_5050_run']:
                 model_type = model_type + '1'
             else: 
                 model_type = model_type + '0'
-    elif params['NoShifter']:
+    if params['NoShifter']:
         model_type = model_type + 'NoShifter'
 
     if params['only_spdpup']:
