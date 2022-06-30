@@ -25,7 +25,7 @@ def arg_parser(jupyter=False):
     parser.add_argument('--free_move',          type=str_to_bool, default=True)
     parser.add_argument('--prey_cap',           type=str_to_bool, default=False)
     parser.add_argument('--fm_dark',            type=str_to_bool, default=False)
-    parser.add_argument('--date_ani',           type=str, default='020422/J577RT') #'070921/J553RT' '122021/J581RT')# '020422/J577RT')#
+    parser.add_argument('--date_ani',           type=str, default='070921/J553RT') #'020422/J577RT' '122021/J581RT')# '020422/J577RT')#
     parser.add_argument('--save_dir',           type=str, default='~/Research/SensoryMotorPred_Data/data4/')
     parser.add_argument('--fig_dir',            type=str, default='~/Research/SensoryMotorPred_Data/ReviewFigures')
     parser.add_argument('--data_dir',           type=str, default='~/Goeppert/nlab-nas/Dylan/freely_moving_ephys/ephys_recordings/')
@@ -44,6 +44,7 @@ def arg_parser(jupyter=False):
     parser.add_argument('--only_spdpup',        type=str_to_bool, default=False)
     parser.add_argument('--train_shifter',      type=str_to_bool, default=False)
     parser.add_argument('--complex',            type=str_to_bool, default=False)
+    parser.add_argument('--complex_onoff',      type=str_to_bool, default=False)
     parser.add_argument('--residuals',          type=str_to_bool, default=False)
     parser.add_argument('--shifter_5050',       type=str_to_bool, default=False)
     parser.add_argument('--shifter_5050_run',   type=str_to_bool, default=False)
@@ -66,7 +67,7 @@ def get_complex_model(input_size, output_size, meanbias, MovModel, device, l, a,
     if (params['train_shifter']==False) & (params['MovModel']!=0) & (params['NoShifter']==False) & (params['SimRF']==False) & (params['do_shuffle']==False):
         state_dict = l1.state_dict()
         best_shift = 'GLM_{}_dt{:03d}_T{:02d}_MovModel{:d}_NB{}_Kfold{:01d}.pth'.format('Pytorch_BestShift',int(params['model_dt']*1000), 1, 1, best_shifter_Nepochs, Kfold)
-        if ((params['only_spdpup'])|params['complex']):
+        if ((params['only_spdpup'])|params['complex']|params['complex_onoff']):
             checkpoint = torch.load(params['save_dir']/params['exp_name_base']/best_shift)
         else: 
             checkpoint = torch.load(params['save_dir']/params['exp_name']/best_shift)
@@ -75,7 +76,7 @@ def get_complex_model(input_size, output_size, meanbias, MovModel, device, l, a,
                 if 'weight' in key:
                     if params['crop_input']!=0:
                         checkpoint['model_state_dict'][key] = checkpoint['model_state_dict'][key].reshape(checkpoint['model_state_dict'][key].shape[0],params['nks'])[:,params['crop_input']:-params['crop_input'],params['crop_input']:-params['crop_input']]
-                    if params['complex']:
+                    if (params['complex']|params['complex_onoff']):
                         state_dict[key] = checkpoint['model_state_dict'][key].repeat(1,params['nt_glm_lag'])
                     else:
                         state_dict[key] = checkpoint['model_state_dict'][key].repeat(1,params['nt_glm_lag'])
@@ -159,7 +160,7 @@ def get_model(input_size, output_size, meanbias, MovModel, device, l, a, params,
     if (params['train_shifter']==False) & (params['MovModel']!=0) & (params['NoShifter']==False) & (params['SimRF']==False) & (params['do_shuffle']==False):
         state_dict = l1.state_dict()
         best_shift = 'GLM_{}_dt{:03d}_T{:02d}_MovModel{:d}_NB{}_Kfold{:01d}.pth'.format('Pytorch_BestShift',int(params['model_dt']*1000), 1, 1, best_shifter_Nepochs, Kfold)
-        if ((params['only_spdpup'])|params['complex']):
+        if ((params['only_spdpup'])|params['complex']|params['complex_onoff']):
             checkpoint = torch.load(params['save_dir']/params['exp_name_base']/best_shift)
         else: 
             checkpoint = torch.load(params['save_dir']/params['exp_name']/best_shift)
@@ -168,7 +169,7 @@ def get_model(input_size, output_size, meanbias, MovModel, device, l, a, params,
                 if 'weight' in key:
                     if (params['crop_input']!=0) & ((params['nks'][0]*params['nks'][1]*params['nt_glm_lag'])!=(30*40*params['nt_glm_lag'])):
                         checkpoint['model_state_dict'][key] = checkpoint['model_state_dict'][key].reshape((checkpoint['model_state_dict'][key].shape[0],)+(30,40))[:,params['crop_input']:-params['crop_input'],params['crop_input']:-params['crop_input']].reshape(checkpoint['model_state_dict'][key].shape[0],-1)
-                    if params['complex']:
+                    if (params['complex']|params['complex_onoff']):
                         state_dict[key] = checkpoint['model_state_dict'][key].repeat(1,2*params['nt_glm_lag'])
                     else:
                         state_dict[key] = checkpoint['model_state_dict'][key].repeat(1,params['nt_glm_lag'])
@@ -213,8 +214,6 @@ def get_model(input_size, output_size, meanbias, MovModel, device, l, a, params,
         if params['do_shuffle']==True:
             GLM_LinVis = ioh5.load(params['save_model_Vis']/'GLM_{}_dt{:03d}_T{:02d}_MovModel{:d}_NB{}_Kfold{:02d}_shuffled_best.h5'.format(model_type, int(params['model_dt']*1000), params['nt_glm_lag'], 1, NepochVis, Kfold))
         else:
-            if params['use_spdpup']:
-                model_type
             GLM_LinVis = ioh5.load(params['save_model_Vis']/'GLM_{}_dt{:03d}_T{:02d}_MovModel{:d}_NB{}_Kfold{:02d}_best.h5'.format(model_type, int(params['model_dt']*1000), params['nt_glm_lag'], 1, NepochVis, Kfold))
         state_dict = l1.state_dict()
         for key in state_dict.keys():
@@ -314,7 +313,7 @@ def load_GLM_data(data, params, train_idx, test_idx, move_medwin=7):
         params['nks'] = np.shape(model_vid_sm)[1:]
         params['nk'] = params['nks'][0]*params['nks'][1]*params['nt_glm_lag']
     else:
-        if ((params['only_spdpup'])|params['complex']):
+        if ((params['only_spdpup'])|params['complex']|params['complex_onoff']):
             model_vid_sm_shift = ioh5.load(params['save_dir']/params['exp_name_base']/'ModelWC_shifted_dt{:03d}_MovModel{:d}.h5'.format(int(params['model_dt']*1000), 1))['model_vid_sm_shift']  # [:,5:-5,5:-5]
         else:
             model_vid_sm_shift = ioh5.load(params['save_dir']/params['exp_name']/'ModelWC_shifted_dt{:03d}_MovModel{:d}.h5'.format(int(params['model_dt']*1000), 1))['model_vid_sm_shift']  # [:,5:-5,5:-5]
@@ -336,6 +335,22 @@ def load_GLM_data(data, params, train_idx, test_idx, move_medwin=7):
     if params['complex']:
         x_train = np.concatenate((x_train,np.abs(x_train) - np.mean(np.abs(x_train),axis=0)),axis=1)
         x_test = np.concatenate((x_test,np.abs(x_test) - np.mean(np.abs(x_test),axis=0)),axis=1)
+        params['nk'] = params['nks'][0]*params['nks'][1]*params['nt_glm_lag']*2
+    elif params['complex_onoff']:
+        x_on_tr = x_train.copy()
+        x_on_tr[np.where(x_on_tr<0)] = 0
+        x_off_tr = x_train.copy()
+        x_off_tr[np.where(x_off_tr>0)] = 0
+        x_on_tr = x_on_tr - np.nanmean(x_on_tr,axis=0) 
+        x_off_tr = x_off_tr - np.nanmean(x_off_tr,axis=0) 
+        x_on_te = x_test.copy()
+        x_on_te[np.where(x_on_te<0)] = 0
+        x_off_te = x_test.copy()
+        x_off_te[np.where(x_off_te>0)] = 0
+        x_on_te = x_on_te - np.nanmean(x_on_te,axis=0) 
+        x_off_te = x_off_te - np.nanmean(x_off_te,axis=0)
+        x_train = np.concatenate((x_on_tr,x_off_tr),axis=1)
+        x_test = np.concatenate((x_on_te,x_off_te),axis=1)
         params['nk'] = params['nks'][0]*params['nks'][1]*params['nt_glm_lag']*2
 
     if params['SimRF']:
@@ -490,7 +505,7 @@ def get_modeltype(params,load_for_training=False):
 
     if params['only_spdpup']:
         model_type = model_type + '_onlySpdPup'
-    if params['use_spdpup']:
+    elif params['use_spdpup']:
         model_type = model_type + '_SpdPup'
     if params['NoL1']:
         model_type = model_type + '_NoL1'
@@ -500,6 +515,8 @@ def get_modeltype(params,load_for_training=False):
         model_type = model_type + '_Laplace'
     if params['complex']:
         model_type = model_type + '_complex2'
+    if params['complex_onoff']:
+        model_type = model_type + '_complex_onoff'
     if params['SimRF']:
         model_type = model_type + '_SimRF'
     if params['residuals']:
@@ -540,6 +557,8 @@ def load_params(MovModel,Kfolds:int,args,file_dict=None,debug=False):
         exp_dir_name = 'shifter5050'
     elif args['complex']:
         exp_dir_name = 'complex'
+    elif args['complex_onoff']:
+        exp_dir_name = 'complex_onoff'
     elif args['only_spdpup']:
         exp_dir_name = 'OnlySpdPupil'
     elif args['crop_input']:
@@ -599,6 +618,7 @@ def load_params(MovModel,Kfolds:int,args,file_dict=None,debug=False):
         'thresh_cells':             args['thresh_cells'],
         'downsamp_vid':             4,
         'complex':                  args['complex'],
+        'complex_onoff':            args['complex_onoff'],
         'residuals':                args['residuals'],
         'shifter_5050':             args['shifter_5050'],
         'shifter_train_size':       .9,
@@ -717,7 +737,7 @@ if __name__ == '__main__':
                 pbar = tqdm(range(len(params['lambdas_m'])))
             
             for reg_lam, l in enumerate(pbar):
-                if params['complex']:
+                if (params['complex']|params['complex_onoff']):
                     # l1,optimizer,scheduler = get_complex_model(input_size, output_size, meanbias, params['MovModel'], device, l, a, params, NepochVis=VisNepochs)
                     l1,optimizer,scheduler = get_model(input_size, output_size, meanbias, params['MovModel'], device, l, a, params, NepochVis=VisNepochs)
                 else:

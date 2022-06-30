@@ -692,10 +692,16 @@ def load_train_test(file_dict, save_dir, model_dt=.1, frac=.1, shifter_train_siz
             glist=glist[~np.any(np.array([glist==shifter_groups[n] for n in np.arange(len(shifter_groups))]),axis=0)]
             
             if kwargs['train_shifter']==False:
-                train_groups = np.random.choice(glist,size=int(len(glist)*test_train_size),replace=False)
-                train_idx = np.any(np.array([groups==train_groups[n] for n in np.arange(len(train_groups))]),axis=0)
-                train_idx_list.append(idx[train_idx])
-                test_idx_list.append(idx[(~train_idx)&(~sampled_inds)])
+                if kwargs['shifter_5050_run']:
+                    train_idx_list = test_idx_list_shifter
+                    test_idx_list  = train_idx_list_shifter
+                else:
+                    train_idx_list = train_idx_list_shifter
+                    test_idx_list  = test_idx_list_shifter
+                # train_groups = np.random.choice(glist,size=int(len(glist)*test_train_size),replace=False)
+                # train_idx = np.any(np.array([groups==train_groups[n] for n in np.arange(len(train_groups))]),axis=0)
+                # train_idx_list.append(idx[train_idx])
+                # test_idx_list.append(idx[(~train_idx)&(~sampled_inds)])
             else:
                 if kwargs['shifter_5050_run']:
                     train_idx_list = test_idx_list_shifter
