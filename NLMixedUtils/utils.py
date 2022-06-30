@@ -2,7 +2,7 @@ import numpy as np
 import seaborn as sns
 import pandas as pd
 import os 
-
+import matplotlib.pyplot as plt
 # sns.set_theme(context='talk', font='Arial', color_codes=True) # palette="dark", style='white',
 
 
@@ -42,7 +42,6 @@ def normimgs(comb,per_frame=False):
 def add_colorbar(mappable,linewidth=2,location='right',**kwargs):
     ''' modified from https://supy.readthedocs.io/en/2021.3.30/_modules/supy/util/_plot.html'''
     from mpl_toolkits.axes_grid1 import make_axes_locatable
-    import matplotlib.pyplot as plt
     last_axes = plt.gca()
     ax = mappable.axes
     fig = ax.figure
@@ -164,23 +163,6 @@ def str_to_bool(value):
         return True
     raise ValueError(f'{value} is not a valid boolean value')
 
-# import subprocess
-# import sys
-# if sys.version_info[0] < 3: 
-#     from StringIO import StringIO
-# else:
-#     from io import StringIO
-
-# def get_freer_gpu():
-#     gpu_stats = subprocess.check_output(["nvidia-smi", "--format=csv", "--query-gpu=memory.used,memory.free"])
-#     gpu_df = pd.read_csv(u"".join(gpu_stats),
-#                          names=['memory.used', 'memory.free'],
-#                          skiprows=1)
-#     print('GPU usage:\n{}'.format(gpu_df))
-#     gpu_df['memory.free'] = gpu_df['memory.free'].map(lambda x: x.rstrip(' [MiB]'))
-#     idx = gpu_df['memory.free'].idxmax()
-#     print('Returning GPU{} with {} free MiB'.format(idx, gpu_df.iloc[idx]['memory.free']))
-#     return idx
 
 def get_freer_gpu():
     os.system('nvidia-smi -q -d Memory |grep -A4 GPU|grep Used >tmp')
