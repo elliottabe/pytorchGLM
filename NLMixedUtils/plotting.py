@@ -384,12 +384,16 @@ def figure3(All_data,pparams,exp_type='CropInputs',figname=None):
     snr_FM = np.nanmax(np.abs(FM_RF_all_snr),axis=(-2,-1))/np.nanstd(FM_RF_all_snr,axis=(-2,-1))
     snr_HF = np.nanmax(np.abs(HF_RF_all_snr),axis=(-2,-1))/np.nanstd(HF_RF_all_snr,axis=(-2,-1))
     mean_HF_fr = np.hstack([All_data[pparams['date_ani2'][da]][exp_type]['HF_meanfr'] for da in range(len(pparams['dates_all']))])
-    vals_FMHF  = np.hstack([All_data[pparams['date_ani2'][da]][exp_type]['HF_FMHF_cc']  for da in range(len(pparams['dates_all']))])[((snr_FM>snr_thresh) & (snr_HF>snr_thresh) & (mean_HF_fr>1) & (vals_Vis>.01)&(vals_HF>.01))]
+    # vals_FMHF  = np.hstack([All_data[pparams['date_ani2'][da]][exp_type]['HF_FMHF_cc']  for da in range(len(pparams['dates_all']))])[((snr_FM>snr_thresh) & (snr_HF>snr_thresh) & (mean_HF_fr>1) & (vals_Vis>.01)&(vals_HF>.01))]
+    RF_CC_HF_all = np.hstack([All_data[pparams['date_ani2'][da]]['5050split']['RF_CC_HF'] for da in range(len(pparams['dates_all']))])
+    RF_CC_FM_all = np.hstack([All_data[pparams['date_ani2'][da]]['5050split']['RF_CC_FM'] for da in range(len(pparams['dates_all']))])
+    thresh=.5
+    vals_FMHF  = np.hstack([All_data[pparams['date_ani2'][da]][exp_type]['HF_FMHF_cc']  for da in range(len(pparams['dates_all']))])[((RF_CC_HF_all>thresh)&(RF_CC_FM_all>thresh))]
     cc_nsig = vals_FMHF[((np.abs(vals_FMHF)<shuff_nstd))]
     cc_sig = vals_FMHF[((np.abs(vals_FMHF)>shuff_nstd))]
 
     ax = axs2
-    hbins=.05
+    hbins=.1
     lim0 = -.6
     lim1 = .65
     dlim = .2
@@ -415,7 +419,7 @@ def figure3(All_data,pparams,exp_type='CropInputs',figname=None):
         ax.axvline(x=vals_FMHF[cell],ls='--',c='k')
 
 
-
+    print('Nsig:{:.02f}, Sig:{:.02}'.format(len(cc_nsig)/(len(cc_sig)+len(cc_nsig)),len(cc_sig)/(len(cc_sig)+len(cc_nsig))))
     plt.tight_layout()
     plt.show()
     if figname != None:
