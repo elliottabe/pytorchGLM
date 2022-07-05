@@ -13,7 +13,6 @@ from scipy.signal import medfilt
 from pathlib import Path
 from scipy.optimize import minimize_scalar
 from scipy.stats import binned_statistic
-from matplotlib_scalebar.scalebar import ScaleBar
 from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
 
 
@@ -216,7 +215,8 @@ def figure2(All_data,pparams,exp_type='CropInputs',figname=None):
     cc_sta = np.hstack([All_data[pparams['date_ani2'][da]][exp_type]['Vis_sta_cc_all'] for da in range(len(pparams['dates_all']))])
     vals_Vis = np.hstack([All_data[pparams['date_ani2'][da]][exp_type]['Vis_cc_test'] for da in range(len(pparams['dates_all']))])
     cc_all2 = np.stack((cc_sta,vals_Vis))
-    RF_all = np.stack((np.vstack([All_data[pparams['date_ani2'][da]][exp_type]['Vis_sta_im'][:,0] for da in range(len(pparams['dates_all']))]),np.vstack([All_data[pparams['date_ani2'][da]][exp_type]['Vis_rf_all'][:,2,:,:] for da in range(len(pparams['dates_all']))])))
+    RF_all = np.stack((np.vstack([All_data[pparams['date_ani2'][da]][exp_type]['Vis_sta_up'][:,0] for da in range(len(pparams['dates_all']))]),np.vstack([All_data[pparams['date_ani2'][da]][exp_type]['Vis_rf_up'][:,2,:,:] for da in range(len(pparams['dates_all']))])))
+
     lag_ls = ['STA','GLM']  
     lag_list = [0,0] #params['lag_list']
     # for da in tqdm(np.arange(len(date_ani2))):
@@ -285,15 +285,16 @@ def figure3(All_data,pparams,exp_type='CropInputs',figname=None):
     hf_inds = np.arange(mean_HF_fr.shape[0])[mean_HF_fr<1]
     sorted_r2 = np.delete(sorted_r2,[np.argwhere(sorted_r2 == hf_inds[n])[0,0] for n in range(len(hf_inds))])
     RF_all = np.stack((np.vstack([All_data[pparams['date_ani2'][da]][exp_type]['Vis_rf_up'] for da in range(len(pparams['dates_all']))]),np.vstack([All_data[pparams['date_ani2'][da]][exp_type]['HF_rf_up'] for da in range(len(pparams['dates_all']))])))
-    fig1 = plt.figure(constrained_layout=False, figsize=(10.,2.))
-    gs0 = gridspec.GridSpec(nrows=2, ncols=5, figure=fig1,wspace=.2,hspace=.3)
+    
+    fig1 = plt.figure(constrained_layout=False, figsize=(10.,1.8))
+    gs0 = gridspec.GridSpec(nrows=2, ncols=5, figure=fig1,wspace=.15,hspace=.05)
     lag_ls = [-50,0,50]
 
     ########## Fig 3A ########## 
     cells = [3,167,62,101] #[58,61,34, 64, 58]#[62,61,101]# 
     num_cells = len(cells)
 
-    gs00 = gridspec.GridSpecFromSubplotSpec(2, num_cells, subplot_spec=gs0[:,:3],wspace=.07,hspace=.05)
+    gs00 = gridspec.GridSpecFromSubplotSpec(2, num_cells, subplot_spec=gs0[:,:3],wspace=.1,hspace=.05)
     axs1 = np.array([fig1.add_subplot(gs00[n,m]) for n in range(2) for m in range(num_cells)]).reshape(2,num_cells)
     xcut1=0
     xcut2=-0
@@ -394,12 +395,12 @@ def figure3(All_data,pparams,exp_type='CropInputs',figname=None):
 
     ax = axs2
     hbins=.1
-    lim0 = -.6
+    lim0 = -.4
     lim1 = .65
     dlim = .2
-    ylim = .2
-    dylim = .05
-    xticks = [-.6,-.3,0,.3,.6] 
+    ylim = .3
+    dylim = .1
+    xticks = [-.3,0,.3,.6] 
     count,edges = np.histogram(cc_sig,bins=np.arange(lim0,lim1,hbins))
     edges_mid = np.array([(edges[i]+edges[i+1])/2 for i in range(len(edges)-1)])
     ax.bar(edges_mid, count/(len(cc_sig)+len(cc_nsig)),color='k',width=hbins, alpha=1,zorder=1) 
