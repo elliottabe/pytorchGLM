@@ -22,14 +22,13 @@ device = torch.device("cuda:{}".format(get_freer_gpu()) if torch.cuda.is_availab
 
 def arg_parser(jupyter=False):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--free_move',          type=str_to_bool, default=True)
-    parser.add_argument('--prey_cap',           type=str_to_bool, default=False)
-    parser.add_argument('--fm_dark',            type=str_to_bool, default=False)
     parser.add_argument('--date_ani',           type=str, default='070921/J553RT') #'020422/J577RT' '122021/J581RT')# '020422/J577RT')#
     parser.add_argument('--save_dir',           type=str, default='~/Research/SensoryMotorPred_Data/data4/')
     parser.add_argument('--fig_dir',            type=str, default='~/Research/SensoryMotorPred_Data/ReviewFigures')
     parser.add_argument('--data_dir',           type=str, default='~/Goeppert/nlab-nas/Dylan/freely_moving_ephys/ephys_recordings/')
-    parser.add_argument('--MovModel',           type=int, default=1)
+    parser.add_argument('--free_move',          type=str_to_bool, default=True)
+    parser.add_argument('--prey_cap',           type=str_to_bool, default=False)
+    parser.add_argument('--fm_dark',            type=str_to_bool, default=False)
     parser.add_argument('--do_norm',            type=str_to_bool, default=True)
     parser.add_argument('--thresh_cells',       type=str_to_bool, default=True)
     parser.add_argument('--crop_input',         type=str_to_bool, default=True)
@@ -48,6 +47,8 @@ def arg_parser(jupyter=False):
     parser.add_argument('--residuals',          type=str_to_bool, default=False)
     parser.add_argument('--shifter_5050',       type=str_to_bool, default=False)
     parser.add_argument('--shifter_5050_run',   type=str_to_bool, default=False)
+    parser.add_argument('--EyeHead_only',       type=str_to_bool, default=False)
+    parser.add_argument('--EyeHead_only_run',   type=str_to_bool, default=False)
     parser.add_argument('--SimRF',              type=str_to_bool, default=False)
     parser.add_argument('--Kfold',              type=int, default=0)
     parser.add_argument('--ModRun',             type=str,default='1') # '-1,0,1,2,3,4'
@@ -272,10 +273,19 @@ def load_GLM_data(data, params, train_idx, test_idx, move_medwin=7):
                 move_train = np.hstack((data['train_th'][:, np.newaxis], data['train_phi'][:, np.newaxis],data['train_pitch'][:, np.newaxis],data['train_roll'][:, np.newaxis],data['train_speed'][:, np.newaxis],data['train_eyerad'][:, np.newaxis]))
                 move_test = np.hstack((data['test_th'][:, np.newaxis], data['test_phi'][:, np.newaxis],data['test_pitch'][:, np.newaxis],data['test_roll'][:, np.newaxis],data['test_speed'][:, np.newaxis],data['test_eyerad'][:, np.newaxis]))
                 model_move = np.hstack((data['model_th'][:, np.newaxis], data['model_phi'][:, np.newaxis],data['model_pitch'][:, np.newaxis],data['model_roll'][:, np.newaxis],data['model_speed'][:, np.newaxis],data['model_eyerad'][:, np.newaxis]))           
+        elif params['EyeHead_only']:
+            if params['EyeHead_only_run']:
+                move_train = np.hstack((data['train_th'][:, np.newaxis], data['train_phi'][:, np.newaxis]))
+                move_test = np.hstack((data['test_th'][:, np.newaxis], data['test_phi'][:, np.newaxis]))
+                model_move = np.hstack((data['model_th'][:, np.newaxis], data['model_phi'][:, np.newaxis]))
+            else: 
+                move_train = np.hstack((data['train_pitch'][:, np.newaxis], data['train_roll'][:, np.newaxis]))
+                move_test = np.hstack((data['test_pitch'][:, np.newaxis], data['test_roll'][:, np.newaxis]))
+                model_move = np.hstack((data['model_pitch'][:, np.newaxis], data['model_roll'][:, np.newaxis]))        
         else:
             move_train = np.hstack((data['train_th'][:, np.newaxis], data['train_phi'][:, np.newaxis],data['train_pitch'][:, np.newaxis],data['train_roll'][:, np.newaxis]))
             move_test = np.hstack((data['test_th'][:, np.newaxis], data['test_phi'][:, np.newaxis],data['test_pitch'][:, np.newaxis],data['test_roll'][:, np.newaxis]))
-            model_move = np.hstack((data['model_th'][:, np.newaxis], data['model_phi'][:, np.newaxis],data['model_pitch'][:, np.newaxis],data['model_roll'][:, np.newaxis]))
+            model_move = np.hstack((data['model_th'][:, np.newaxis], data['model_phi'][:, np.newaxis],data['model_pitch'][:, np.newaxis],data['model_roll'][:, np.newaxis]))        
     else:
         move_train = np.hstack((data['train_th'][:, np.newaxis], data['train_phi'][:, np.newaxis], data['train_pitch'][:, np.newaxis], np.zeros(data['train_phi'].shape)[:, np.newaxis]))
         move_test = np.hstack((data['test_th'][:, np.newaxis], data['test_phi'][:, np.newaxis], data['test_pitch'][:, np.newaxis], np.zeros(data['test_phi'].shape)[:, np.newaxis]))
@@ -313,7 +323,7 @@ def load_GLM_data(data, params, train_idx, test_idx, move_medwin=7):
         params['nks'] = np.shape(model_vid_sm)[1:]
         params['nk'] = params['nks'][0]*params['nks'][1]*params['nt_glm_lag']
     else:
-        if ((params['only_spdpup'])|params['complex']|params['complex_onoff']):
+        if ((params['only_spdpup'])|params['complex']|params['complex_onoff']|(params['EyeHead_only'])):
             model_vid_sm_shift = ioh5.load(params['save_dir']/params['exp_name_base']/'ModelWC_shifted_dt{:03d}_MovModel{:d}.h5'.format(int(params['model_dt']*1000), 1))['model_vid_sm_shift']  # [:,5:-5,5:-5]
         else:
             model_vid_sm_shift = ioh5.load(params['save_dir']/params['exp_name']/'ModelWC_shifted_dt{:03d}_MovModel{:d}.h5'.format(int(params['model_dt']*1000), 1))['model_vid_sm_shift']  # [:,5:-5,5:-5]
@@ -378,17 +388,6 @@ def load_GLM_data(data, params, train_idx, test_idx, move_medwin=7):
         xtem = None
         params['nk'] = xtr.shape[-1]
         params['move_features'] = None 
-        # if params['reg_lap']:
-        #     params['lambdas_m'] = np.hstack((0, np.logspace(1, 8, 20,base=10)))
-        #     params['nlam'] = len(params['lambdas_m'])
-        # else:
-        #     params['alpha_l'] = np.array([0])
-        # if params['NoL2']:
-        #     params['lambdas'] = np.array([0])
-        # else:
-        #     params['lambdas_m'] = np.hstack((0, np.logspace(-2, 3, 20)))
-        #     params['lambdas'] = np.hstack((0, np.logspace(-2, 3, 20)))
-        #     params['nlam'] = len(params['lambdas'])
         params['alpha_l'] = np.array([None])
         params['lambdas'] = np.array([0])
         params['lambdas_m'] = np.array([0])
@@ -500,6 +499,12 @@ def get_modeltype(params,load_for_training=False):
                 model_type = model_type + '1'
             else: 
                 model_type = model_type + '0'
+
+    if params['EyeHead_only']:
+        if params['EyeHead_only_run']==True:
+            model_type = model_type + '_EyeOnly'
+        else:
+            model_type = model_type + '_HeadOnly'
     if params['NoShifter']:
         model_type = model_type + 'NoShifter'
 
@@ -555,6 +560,8 @@ def load_params(MovModel,Kfolds:int,args,file_dict=None,debug=False):
 
     if args['shifter_5050']:
         exp_dir_name = 'shifter5050'
+    elif args['EyeHead_only']:
+        exp_dir_name = 'EyeHead_only'
     elif args['complex']:
         exp_dir_name = 'complex'
     elif args['complex_onoff']:
@@ -563,8 +570,8 @@ def load_params(MovModel,Kfolds:int,args,file_dict=None,debug=False):
         exp_dir_name = 'OnlySpdPupil'
     elif args['crop_input']:
         exp_dir_name = 'CropInputs'
-    # elif args['residuals']:
-    #     exp_dir_name = 'residuals'
+    elif args['residuals']:
+        exp_dir_name = 'residuals'
     else:
         exp_dir_name = 'RevisionSims'
 
@@ -610,6 +617,8 @@ def load_params(MovModel,Kfolds:int,args,file_dict=None,debug=False):
         'reg_lap':                  args['reg_lap'],
         'use_spdpup':               args['use_spdpup'],
         'only_spdpup':              args['only_spdpup'],
+        'EyeHead_only':             args['EyeHead_only'],
+        'EyeHead_only_run':         args['EyeHead_only_run'],
         'SimRF':                    args['SimRF'],
         'date_ani2':                date_ani2,
         'bin_length':               40,
