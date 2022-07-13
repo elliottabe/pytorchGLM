@@ -11,10 +11,10 @@ import torch.optim as optim
 from test_tube import Experiment
 from tqdm.auto import tqdm
 
-from NLMixedUtils.utils import *
-import NLMixedUtils.io_dict_to_hdf5 as ioh5
-from NLMixedUtils.format_data import *
-from NLMixedUtils.models import *
+import Utils.io_dict_to_hdf5 as ioh5
+from Utils.utils import *
+from Utils.format_data import *
+from main.models import *
 
 torch.backends.cudnn.benchmark = True
 device = torch.device("cuda:{}".format(get_freer_gpu()) if torch.cuda.is_available() else "cpu")

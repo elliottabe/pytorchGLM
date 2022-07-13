@@ -19,12 +19,11 @@ from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
 sns.set_context("talk")
 
 
-from NLMixedUtils.utils import *
-import NLMixedUtils.io_dict_to_hdf5 as ioh5
-from NLMixedUtils.format_data import *
-from NLMixedUtils.models import *
-from NLMixedScripts.fit_GLM import *
-
+import Utils.io_dict_to_hdf5 as ioh5
+from Utils.utils import *
+from Utils.format_data import *
+from main.models import *
+from main.fit_GLM import *
 
 
 warnings.filterwarnings('ignore')

@@ -1,9 +1,10 @@
-import numpy as np
-import seaborn as sns
-import pandas as pd
 import os 
+import ray
+import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
-# sns.set_theme(context='talk', font='Arial', color_codes=True) # palette="dark", style='white',
+from ray.actor import ActorHandle
+from tqdm.auto import tqdm
 
 
 ########## Checks if path exists, if not then creates directory ##########
@@ -162,6 +163,45 @@ def str_to_bool(value):
     elif value.lower() in {'True', 'true', 't', '1', 'yes', 'y'}:
         return True
     raise ValueError(f'{value} is not a valid boolean value')
+
+
+
+class ProgressBar:
+    progress_actor: ActorHandle
+    total: int
+    description: str
+    pbar: tqdm
+
+    def __init__(self, total: int, description: str = ""):
+        # Ray actors don't seem to play nice with mypy, generating
+        # a spurious warning for the following line,
+        # which we need to suppress. The code is fine.
+        self.progress_actor = ProgressBarActor.remote()  # type: ignore
+        self.total = total
+        self.description = description
+
+    @property
+    def actor(self) -> ActorHandle:
+        """Returns a reference to the remote `ProgressBarActor`.
+
+        When you complete tasks, call `update` on the actor.
+        """
+        return self.progress_actor
+
+    def print_until_done(self) -> None:
+        """Blocking call.
+
+        Do this after starting a series of remote Ray tasks, to which you've
+        passed the actor handle. Each of them calls `update` on the actor.
+        When the progress meter reaches 100%, this method returns.
+        """
+        pbar = tqdm(desc=self.description, total=self.total)
+        while True:
+            delta, counter = ray.get(self.actor.wait_for_update.remote())
+            pbar.update(delta)
+            if counter >= self.total:
+                pbar.close()
+                return
 
 
 def get_freer_gpu():
