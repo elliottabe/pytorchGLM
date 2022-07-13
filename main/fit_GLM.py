@@ -451,7 +451,7 @@ def load_params(MovModel,Kfolds:int,args,file_dict=None,debug=False):
     date_ani2 = '_'.join(date_ani.split('/'))
     data_dir = Path(args['data_dir']).expanduser() / date_ani / stim_type 
     save_dir = (Path(args['save_dir']).expanduser() / date_ani / stim_type)
-    base_dir = (Path(args['save_dir']).expanduser() / date_ani)
+    base_dir = Path(args['save_dir']).expanduser()
     save_dir.mkdir(parents=True, exist_ok=True)
     save_dir_fm = save_dir.parent / fm_dir
     save_dir_hf = save_dir.parent / 'hf1_wn'
@@ -679,7 +679,7 @@ if __name__ == '__main__':
                 if params['train_shifter']:
                     torch.save({'reg_alph': reg_alph, 'reg_lam':l, 'model_state_dict': l1.state_dict(),'optimizer_state_dict': optimizer.state_dict(),}, (params['save_model_shift'] / model_name))
                 
-        
+
         if params['reg_lap']:
             GLM_CV['loss_regcv'][GLM_CV['loss_regcv']<0] = np.nan
         malph, mlam, cellnum = np.where(GLM_CV['loss_regcv'] == np.nanmin(GLM_CV['loss_regcv'], axis=(0, 1), keepdims=True))
