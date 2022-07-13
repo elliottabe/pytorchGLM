@@ -26,7 +26,6 @@ from scipy.stats import binned_statistic
 
 from Utils.utils import *
 import Utils.io_dict_to_hdf5 as ioh5
-# from main.fit_GLM import *
 
 
 @ray.remote
