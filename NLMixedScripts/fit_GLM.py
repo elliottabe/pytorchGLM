@@ -591,7 +591,7 @@ def load_params(MovModel,Kfolds:int,args,file_dict=None,debug=False):
         'do_shuffle':               args['do_shuffle'],
         'do_norm':                  args['do_norm'],
         'do_worldcam_correction':   False,
-        'lag_list':                 [-2,-1,0,1,2], # [0],#
+        'lag_list':                 [0],#[-2,-1,0,1,2], # 
         'free_move':                free_move,
         'stim_type':                stim_type,
         'base_dir':                 base_dir,

@@ -1,18 +1,18 @@
 ## TSP Code
 
 Normal Runs
-tsp python fit_GLM.py --date_ani='070921/J553RT' --ModRun=0 --complex=False --crop_input=True --use_spdpup=False
-tsp python fit_GLM.py --date_ani='101521/J559NC' --ModRun=0 --complex=False --crop_input=True --use_spdpup=False
-tsp python fit_GLM.py --date_ani='102821/J570LT' --ModRun=0 --complex=False --crop_input=True --use_spdpup=False
-tsp python fit_GLM.py --date_ani='110421/J569LT' --ModRun=0 --complex=False --crop_input=True --use_spdpup=False
+tsp python fit_GLM.py --date_ani='070921/J553RT' --ModRun=0,1,2,3,4 --complex=False --crop_input=True --use_spdpup=False
+tsp python fit_GLM.py --date_ani='101521/J559NC' --ModRun=0,1,2,3,4 --complex=False --crop_input=True --use_spdpup=False
+tsp python fit_GLM.py --date_ani='102821/J570LT' --ModRun=0,1,2,3,4 --complex=False --crop_input=True --use_spdpup=False
+tsp python fit_GLM.py --date_ani='110421/J569LT' --ModRun=0,1,2,3,4 --complex=False --crop_input=True --use_spdpup=False
 tsp python fit_GLM.py --date_ani='020422/J577RT' --ModRun=-1,0,1,2,3,4 --complex=False --crop_input=True --use_spdpup=False
 tsp python fit_GLM.py --date_ani='032022/J599LT' --ModRun=-1,0,1,2,3,4 --complex=False --crop_input=True --use_spdpup=False
 
 Complex
-tsp python fit_GLM.py --date_ani='070921/J553RT' --ModRun=0,1,2,3,4 --complex=True --use_spdpup=True
-tsp python fit_GLM.py --date_ani='101521/J559NC' --ModRun=0,1,2,3,4 --complex=True --use_spdpup=True
-tsp python fit_GLM.py --date_ani='102821/J570LT' --ModRun=0,1,2,3,4 --complex=True --use_spdpup=True
-tsp python fit_GLM.py --date_ani='110421/J569LT' --ModRun=0,1,2,3,4 --complex=True --use_spdpup=True
+tsp python fit_GLM.py --date_ani='070921/J553RT' --ModRun=0,1,2,3,4 --complex=True --use_spdpup=False
+tsp python fit_GLM.py --date_ani='101521/J559NC' --ModRun=0,1,2,3,4 --complex=True --use_spdpup=False
+tsp python fit_GLM.py --date_ani='102821/J570LT' --ModRun=0,1,2,3,4 --complex=True --use_spdpup=False
+tsp python fit_GLM.py --date_ani='110421/J569LT' --ModRun=0,1,2,3,4 --complex=True --use_spdpup=False
 
 Complex_onoff
 tsp python fit_GLM.py --date_ani='070921/J553RT' --ModRun=0,1,2,3,4 --complex_onoff=True --use_spdpup=False
@@ -21,20 +21,20 @@ tsp python fit_GLM.py --date_ani='102821/J570LT' --ModRun=0,1,2,3,4 --complex_on
 tsp python fit_GLM.py --date_ani='110421/J569LT' --ModRun=0,1,2,3,4 --complex_onoff=True --use_spdpup=False
 
 Shuffle Data
-tsp python fit_GLM.py --date_ani='070921/J553RT' --ModRun=0,1,2,3,4 --do_shuffle=True --crop_input=True --complex=False
-tsp python fit_GLM.py --date_ani='101521/J559NC' --ModRun=0,1,2,3,4 --do_shuffle=True --crop_input=True --complex=False
-tsp python fit_GLM.py --date_ani='102821/J570LT' --ModRun=0,1,2,3,4 --do_shuffle=True --crop_input=True --complex=False
-tsp python fit_GLM.py --date_ani='110421/J569LT' --ModRun=0,1,2,3,4 --do_shuffle=True --crop_input=True --complex=False
+tsp python fit_GLM.py --date_ani='070921/J553RT' --ModRun=0,1,2,3,4 --do_shuffle=True --crop_input=True --complex=True
+tsp python fit_GLM.py --date_ani='101521/J559NC' --ModRun=0,1,2,3,4 --do_shuffle=True --crop_input=True --complex=True
+tsp python fit_GLM.py --date_ani='102821/J570LT' --ModRun=0,1,2,3,4 --do_shuffle=True --crop_input=True --complex=True
+tsp python fit_GLM.py --date_ani='110421/J569LT' --ModRun=0,1,2,3,4 --do_shuffle=True --crop_input=True --complex=True
 
 50/50 Shifter
-tsp python fit_GLM.py --date_ani='070921/J553RT' --ModRun=1,4 --shifter_5050=True --shifter_5050_run=True --crop_input=True --complex_onoff=True 
-tsp python fit_GLM.py --date_ani='101521/J559NC' --ModRun=1,4 --shifter_5050=True --shifter_5050_run=True --crop_input=True --complex_onoff=True 
-tsp python fit_GLM.py --date_ani='102821/J570LT' --ModRun=1,4 --shifter_5050=True --shifter_5050_run=True --crop_input=True --complex_onoff=True 
-tsp python fit_GLM.py --date_ani='110421/J569LT' --ModRun=1,4 --shifter_5050=True --shifter_5050_run=True --crop_input=True --complex_onoff=True 
-tsp python fit_GLM.py --date_ani='070921/J553RT' --ModRun=1,4 --shifter_5050=True --shifter_5050_run=False --crop_input=True --complex_onoff=True
-tsp python fit_GLM.py --date_ani='101521/J559NC' --ModRun=1,4 --shifter_5050=True --shifter_5050_run=False --crop_input=True --complex_onoff=True
-tsp python fit_GLM.py --date_ani='102821/J570LT' --ModRun=1,4 --shifter_5050=True --shifter_5050_run=False --crop_input=True --complex_onoff=True
-tsp python fit_GLM.py --date_ani='110421/J569LT' --ModRun=1,4 --shifter_5050=True --shifter_5050_run=False --crop_input=True --complex_onoff=True
+tsp python fit_GLM.py --date_ani='070921/J553RT' --ModRun=1,4 --shifter_5050=True --shifter_5050_run=True --crop_input=True --complex=True 
+tsp python fit_GLM.py --date_ani='101521/J559NC' --ModRun=1,4 --shifter_5050=True --shifter_5050_run=True --crop_input=True --complex=True 
+tsp python fit_GLM.py --date_ani='102821/J570LT' --ModRun=1,4 --shifter_5050=True --shifter_5050_run=True --crop_input=True --complex=True 
+tsp python fit_GLM.py --date_ani='110421/J569LT' --ModRun=1,4 --shifter_5050=True --shifter_5050_run=True --crop_input=True --complex=True 
+tsp python fit_GLM.py --date_ani='070921/J553RT' --ModRun=1,4 --shifter_5050=True --shifter_5050_run=False --crop_input=True --complex=True
+tsp python fit_GLM.py --date_ani='101521/J559NC' --ModRun=1,4 --shifter_5050=True --shifter_5050_run=False --crop_input=True --complex=True
+tsp python fit_GLM.py --date_ani='102821/J570LT' --ModRun=1,4 --shifter_5050=True --shifter_5050_run=False --crop_input=True --complex=True
+tsp python fit_GLM.py --date_ani='110421/J569LT' --ModRun=1,4 --shifter_5050=True --shifter_5050_run=False --crop_input=True --complex=True
 
 NoShifter
 tsp python fit_GLM.py --date_ani='070921/J553RT' --ModRun=1 --complex=False --NoShifter=True --crop_input=True
