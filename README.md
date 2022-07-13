@@ -1,5 +1,5 @@
-# NonLinearMixedSel_FreelyMoving
-Code base for fitting freely moving RFs and exploring nonlinear mixed selctivity
+# Joint coding of visual input and eye/head position in V1 of freely moving mice
+Code base for fitting GLMs and measuring freely moving RFs 
 
 # Setup For Ubuntu 20.04
 To install the repo there is a conda environment that will install the necessary packages. Use command: 
