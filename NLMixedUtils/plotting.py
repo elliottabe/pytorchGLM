@@ -334,7 +334,7 @@ def figure3(All_data,pparams,exp_type='CropInputs',figname=None):
         ax.set_yticks([])   
 
     ########## Fig 3B ########## 
-    gs01 = gridspec.GridSpecFromSubplotSpec(1, 2, subplot_spec=gs0[:,3:],wspace=.45,hspace=.1)
+    gs01 = gridspec.GridSpecFromSubplotSpec(1, 2, subplot_spec=gs0[:,3:],wspace=.3,hspace=.1)
 
 
     ### Shuffle bar
@@ -363,14 +363,20 @@ def figure3(All_data,pparams,exp_type='CropInputs',figname=None):
     ax = axs3
     ylim =1.25
     dylim = .25
-    ax.bar([0,1,2,3],[Nactive_HF,Nactive_FM,Nsig_HF,Nsig_FM],color='k')
+    # patterns = ['//', '\\\\','//','\\\\']
+    legend_label = [None,None,'HF','FM']
+    data_f3b = [Nactive_HF,Nactive_FM,Nsig_HF,Nsig_FM]
+    xticks = [0,1.25,2.5,3.75]
+    clrs = 2*['k','#6D6E71']
+    for n in range(4):
+        ax.bar(xticks[n],data_f3b[n],color=clrs[n],edgecolor='white',label=legend_label[n]) # hatch=patterns[n],
     ax.set_yticks(np.arange(0,ylim,dylim))
     ax.set_yticklabels(np.round(np.arange(0,ylim,dylim),decimals=3),fontsize=fontsize-2)
-    ax.set_xticks([0,1,2,3])
-    ax.set_xticklabels(['HF \nactive','FM \n active','HF \n sig','FM \n sig'],fontsize=fontsize-2)
+    ax.set_xticks(xticks)
+    ax.set_xticklabels(['% \nactive','% \nactive','% \nfit','% \nfit'],ha='center',fontsize=fontsize-2)
     ax.set_ylabel('fraction of units',fontsize=fontsize)
     ax.set_ylim([0,1])
-
+    ax.legend(fontsize=fontsize, frameon=False,handletextpad=.1,loc='upper right')
 
 
 
@@ -405,7 +411,7 @@ def figure3(All_data,pparams,exp_type='CropInputs',figname=None):
     edges_mid = np.array([(edges[i]+edges[i+1])/2 for i in range(len(edges)-1)])
     ax.bar(edges_mid, count/(len(cc_sig)+len(cc_nsig)),color='k',width=hbins, alpha=1,zorder=1) 
     count,edges = np.histogram(cc_nsig,bins=np.arange(lim0,lim1,hbins))
-    ax.bar(edges_mid, count/(len(cc_sig)+len(cc_nsig)),color='#6D6E71',width=hbins, alpha=1) 
+    ax.bar(edges_mid, count/(len(cc_sig)+len(cc_nsig)),color='#C1C1C3',width=hbins, alpha=1) 
 
     ax.set_xlabel('RF correlation',fontsize=fontsize)
     ax.set_ylabel('fraction of units',fontsize=fontsize)
@@ -420,7 +426,7 @@ def figure3(All_data,pparams,exp_type='CropInputs',figname=None):
         ax.axvline(x=vals_FMHF[cell],ls='--',c='k')
 
 
-    print('Nsig:{:.02f}, Sig:{:.02}'.format(len(cc_nsig)/(len(cc_sig)+len(cc_nsig)),len(cc_sig)/(len(cc_sig)+len(cc_nsig))))
+    print('RF Significance Nsig:{:.02f}, Sig:{:.02}'.format(len(cc_nsig)/(len(cc_sig)+len(cc_nsig)),len(cc_sig)/(len(cc_sig)+len(cc_nsig))))
     plt.tight_layout()
     plt.show()
     if figname != None:
@@ -516,9 +522,11 @@ def figure4(All_data,pparams,cell=265,exp_type='CropInputs',figname=None):
     ##### Modulation Index Histograms #####
     # x_sc = np.stack((np.random.normal(0, 0.1, tuning_sig_all.shape[0]), np.random.normal(1, 0.1, tuning_sig_all.shape[0]),np.random.normal(2, 0.1, tuning_sig_all.shape[0]),np.random.normal(3, 0.1, tuning_sig_all.shape[0])))
     x_sc = np.stack([np.random.normal(n, 0.1, tuning_sig_all.shape[0]) for n in range(len(pparams['titles']))])
+    sig_cells = np.sum(tuning_sig_all>.33,axis=0)/tuning_sig_all.shape[0]
     ax = axs0a[1]
     for modeln in np.arange(0,len(pparams['titles'])):
         ax.scatter(x_sc[modeln],tuning_sig_all[:,modeln],s=5,c='k',edgecolors='none')
+        ax.text(modeln,.9,'{:.02f}'.format(sig_cells[modeln]),fontsize=fontsize)
     ax.set_xticks(np.arange(len(pparams['titles'])))
     ax.set_xticklabels(pparams['titles'],fontsize=fontsize)
     ax.set_ylim([0,1])
