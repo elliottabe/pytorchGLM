@@ -1,5 +1,5 @@
-# Joint coding of visual input and eye/head position in V1 of freely moving mice
-Code base for fitting GLMs and measuring freely moving RFs 
+# Code base for "Joint coding of visual input and eye/head position in V1 of freely moving mice"
+
 
 # Setup For Ubuntu 20.04
 To install the repo there is a conda environment that will install the necessary packages.  
