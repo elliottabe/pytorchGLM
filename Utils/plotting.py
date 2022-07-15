@@ -73,13 +73,13 @@ def figure2(All_data,pparams,exp_type='CropInputs',figname=None):
     vals_VisNoSh = np.hstack([All_data[pparams['date_ani2'][da]][exp_type]['VisNoShifter_cc_test'] for da in range(len(pparams['dates_all']))])
     r2_all = np.stack((vals_VisNoSh,vals_Vis))
     fig1 = plt.figure(constrained_layout=False, figsize=(10.8,4.25))
-    gs0 = fig1.add_gridspec(nrows=3, ncols=8, wspace=.8, hspace=.9)
+    gs0 = fig1.add_gridspec(nrows=3, ncols=8, wspace=.2, hspace=.9)
     lag_ls = [-100,-50,0,50,100]
     lag_list = [0,1,2,3,4]
     ########## Fig 2B ########## 
     da=0
     cells = [22,34,42,101] #np.arange(18)
-    gs00 = gridspec.GridSpecFromSubplotSpec(nrows=len(cells),ncols=len(lag_list), subplot_spec=gs0[:,:4], wspace=.05, hspace=.08)
+    gs00 = gridspec.GridSpecFromSubplotSpec(nrows=len(cells),ncols=len(lag_list), subplot_spec=gs0[:,:5], wspace=.05, hspace=.08)
     axs1 = np.array([fig1.add_subplot(gs00[n,m]) for n in range(len(cells)) for m in range(len(lag_list))]).reshape(len(cells),len(lag_list))
 
     for n, cell in enumerate(cells):
@@ -115,7 +115,7 @@ def figure2(All_data,pparams,exp_type='CropInputs',figname=None):
         ax.set_yticks([])
 
     ########## Fig 2C ########## 
-    gs02 = gridspec.GridSpecFromSubplotSpec(1, 3, subplot_spec=gs0[0,4:],wspace=1.2,hspace=.2)
+    gs02 = gridspec.GridSpecFromSubplotSpec(1, 3, subplot_spec=gs0[0,5:],wspace=1.2,hspace=.2)
     axs2 = np.array([fig1.add_subplot(gs02[0,:2]), fig1.add_subplot(gs02[0,2])])
 
     celln = 42
@@ -125,8 +125,8 @@ def figure2(All_data,pparams,exp_type='CropInputs',figname=None):
     t = np.argmin(np.abs((np.arange(All_data[pparams['date_ani2'][da]]['actual_smooth'].shape[0])*params['model_dt'])-0)) 
     dt = int(300/params['model_dt']) 
     pred_time = (np.arange(All_data[pparams['date_ani2'][da]]['actual_smooth'].shape[0])*params['model_dt'])[0:np.abs(dt)]
-    ax.plot(pred_time,All_data[pparams['date_ani2'][da]]['actual_smooth'][t:t+dt,celln],c='k',lw=.75,zorder=0,label='data')
-    ax.plot(pred_time,All_data[pparams['date_ani2'][da]][exp_type][pparams['mod_titles'][modN]+'_pred_smooth'][t:t+dt,celln],c=mod_clrs[modN],lw=.75,
+    ax.plot(pred_time,All_data[pparams['date_ani2'][da]]['actual_smooth'][t:t+dt,celln],c='k',lw=.5,zorder=0,label='data')
+    ax.plot(pred_time,All_data[pparams['date_ani2'][da]][exp_type][pparams['mod_titles'][modN]+'_pred_smooth'][t:t+dt,celln],c=mod_clrs[modN],lw=.5,
                 label='{} cc: {:.02f}'.format(pparams['mod_titles'][modN],All_data[pparams['date_ani2'][da]][exp_type][pparams['mod_titles'][modN]+'_r2_test'][celln]),zorder=1)
     ax.legend(labelcolor='linecolor', fontsize=10, handlelength=0, handletextpad=0,loc='upper left',ncol=2)
     ax.set_xlabel('time (s)',fontsize=fontsize)
@@ -156,7 +156,7 @@ def figure2(All_data,pparams,exp_type='CropInputs',figname=None):
 
 
     ########## Fig 2D ########## 
-    gs02 = gridspec.GridSpecFromSubplotSpec(2, 3, subplot_spec=gs0[1:,4:],wspace=1,hspace=.5)
+    gs02 = gridspec.GridSpecFromSubplotSpec(2, 3, subplot_spec=gs0[1:,5:],wspace=1,hspace=.5)
     gs02b = gridspec.GridSpecFromSubplotSpec(2, 2, subplot_spec=gs02[:2,:2],wspace=.1,hspace=.8)
     axs3 = np.array([fig1.add_subplot(gs02b[0,0]), fig1.add_subplot(gs02b[0,1]),fig1.add_subplot(gs02b[1,0]), fig1.add_subplot(gs02b[1,1])]).reshape(2,2)
     lag = 1
