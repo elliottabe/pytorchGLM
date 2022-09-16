@@ -1,4 +1,7 @@
 # README for "Joint coding of visual input and eye/head position in V1 of freely moving mice" dataset
+This dataset contains a single nested python dictionary stucture saved as an h5 file. 
+ModelData_all.h5
+
 
 ## Opening h5 file
 To open the data use code found in the github repo: Utils/io_dict_to_hdf5.py
@@ -22,6 +25,19 @@ for key1 in data_all.keys():
         for key3 in data_all[key1][key2].keys():
             print('_'.join([key1,key2,key3])+':',data_all[key1][key2][key3].shape)
 ```
+Variable Names:
+- *_model_active: Metric of when the mouse was moving. Threshold = 0.5
+- *_model_eyerad: Measurement of the pupil radius
+- *_model_gz: Gyro in the z direction representing yaw of the head
+- *_model_nsp: Spike count per bin in 50ms bins
+- *_model_phi: Horizontal angle phi of the mouse's eye
+- *_model_pitch: Vertical angle of the mouse's head
+- *_model_roll: Rotation angle of the mouse's head
+- *_model_speed: running speed of the mouse
+- *_model_t: Time in seconds during recording
+- *_model_th: Horizontal angle theta of the mouse's eye
+- *_model_vid_sm: downsampled video of the the world camera recording
+- *_unit_nums: channel number for each recorded unit
 
 Variables with the dictionary: 
 - 070921_J553RT_fm1_model_active: (54354,)
