@@ -649,9 +649,9 @@ def load_train_test(file_dict, save_dir, model_dt=.1, frac=.1, shifter_train_siz
     FM_move_avg = np.load(kwargs['save_dir_fm']/'FM_MovAvg_dt{:03d}.npy'.format(int(model_dt*1000)))
     data['model_th'] = data['model_th'] - FM_move_avg[0,0]
     data['model_phi'] = (data['model_phi'] - FM_move_avg[0,1])
-    data['model_vid_sm'] = (data['model_vid_sm'] - np.mean(data['model_vid_sm'],axis=0))/np.nanstd(data['model_vid_sm'],axis=0)
-    data['model_vid_sm'][np.isnan(data['model_vid_sm'])]=0
     if do_norm:
+        data['model_vid_sm'] = (data['model_vid_sm'] - np.mean(data['model_vid_sm'],axis=0))/np.nanstd(data['model_vid_sm'],axis=0)
+        data['model_vid_sm'][np.isnan(data['model_vid_sm'])]=0
         data['model_th'] = (data['model_th'])/FM_move_avg[1,0] # np.nanstd(data['model_th'],axis=0) 
         data['model_phi'] = (data['model_phi'])/FM_move_avg[1,1] # np.nanstd(data['model_phi'],axis=0) 
         if free_move:
@@ -826,8 +826,8 @@ if __name__ == '__main__':
     #     logging_level=logging.ERROR,
     # )
 
-    model_dt=.05
-    downsamp_vid = 4
+    model_dt=.015
+    downsamp_vid = 2
     free_move = True
     fm_dark = False
     prey_cap=False
@@ -843,7 +843,7 @@ if __name__ == '__main__':
         stim_type = 'hf1_wn'     
     dates_all = ['070921/J553RT' ,'101521/J559NC','102821/J570LT','110421/J569LT','122021/J581RT'] # '102621/J558NC' '062921/G6HCK1ALTRN',
     # dates_all = ['100821/J559TT', '101621/J559NC', '102721/J558NC', '110421/J558LT','110521/J569LT']
-    date_ani = dates_all[0] #args['date_ani']
+    date_ani = dates_all[1] #args['date_ani']
     date_ani2 = '_'.join(date_ani.split('/'))
     data_dir = Path(args['data_dir']).expanduser() / date_ani / stim_type 
     save_dir = (Path(args['save_dir']).expanduser() / date_ani / stim_type)
