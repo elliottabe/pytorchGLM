@@ -12,7 +12,7 @@ from tqdm.auto import tqdm
 
 import Utils.io_dict_to_hdf5 as ioh5
 from Utils.utils import *
-from Utils.format_data import *
+from Utils.format_raw_data import *
 from main.models import *
 
 torch.backends.cudnn.benchmark = True
@@ -420,16 +420,8 @@ def get_modeltype(params,load_for_training=False):
         model_type = model_type + '_NoL1'
     if params['NoL2']:
         model_type = model_type + '_NoL2'
-    if params['reg_lap']:
-        model_type = model_type + '_Laplace'
-    if params['complex']:
-        model_type = model_type + '_complex2'
-    if params['complex_onoff']:
-        model_type = model_type + '_complex_onoff'
     if params['SimRF']:
         model_type = model_type + '_SimRF'
-    if params['residuals']:
-        model_type = model_type + '_residuals'
     if load_for_training==False:
         params['model_type'] = model_type
         return params
