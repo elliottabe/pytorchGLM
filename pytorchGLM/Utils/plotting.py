@@ -19,11 +19,11 @@ from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
 sns.set_context("talk")
 
 
-import Utils.io_dict_to_hdf5 as ioh5
+import pytorchGLM.Utils.io_dict_to_hdf5 as ioh5
 from Utils.utils import *
 from Utils.format_raw_data import *
 from main.models import *
-from main.fit_GLM import *
+from fit_GLM import *
 
 
 warnings.filterwarnings('ignore')

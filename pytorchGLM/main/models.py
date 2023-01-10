@@ -1,8 +1,6 @@
 import torch
 import torch.nn as nn
 from kornia.geometry.transform import Affine
-from torch.nn.modules.activation import Softplus
-from torch.nn.modules.linear import Linear
 
 def model_wrapper(ARGS,**kwargs):
     """Model Wrapper

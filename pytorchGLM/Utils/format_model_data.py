@@ -1,18 +1,37 @@
 import numpy as np
-
-from pathlib import Path
-
 import torch
-import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset
-from torch.utils.data import DataLoader
+from filelock import FileLock
 
 
-import Utils.io_dict_to_hdf5 as ioh5
-from Utils.utils import *
-from Utils.params import *
+from pytorchGLM.Utils.format_raw_data import *
+from pytorchGLM.params import *
 
+def load_datasets(file_dict,params,single_trial=False):
+    """Load dataset and prepare datasets for ray tune. 
+
+    Args:
+        file_dict (dict): dictionary containing paths to raw data.
+        params (dict): key parameters dictionary
+        single_trial (bool, optional): single_trial=True, used for debuging. Defaults to False.
+
+    Returns:
+        train_dataset (Dataset): train dataset for pytorch. Grouped shuffled data
+        test_dataset  (Dataset): test dataset for pytorch. Grouped shuffled data
+        network_config (dict): Dictionary containing parameters for network
+    """
+    data = load_aligned_data(file_dict, params, reprocess=False)
+    data,train_idx_list,test_idx_list = format_data(data, params,do_norm=True,thresh_cells=True,cut_inactive=True)
+    train_idx = train_idx_list[0]
+    test_idx = test_idx_list[0]
+    data = load_Kfold_data(data,params,train_idx,test_idx)
+    xtr, xte, xtr_pos, xte_pos, ytr, yte, meanbias = format_pytorch_data(data,params,train_idx,test_idx)
+    network_config = make_network_config(params,single_trial=single_trial)
+    with FileLock(params['save_model']/'data.lock'):
+        train_dataset = FreeMovingEphysDataset(xtr,xtr_pos,ytr)
+        test_dataset  = FreeMovingEphysDataset(xte,xte_pos,yte)
+    return train_dataset, test_dataset, network_config
 
 def get_modeltype(params,load_for_training=False):
     """Creates model name based on params configuation

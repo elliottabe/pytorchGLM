@@ -1,4 +1,3 @@
-import ray
 import argparse
 import yaml
 import warnings 
@@ -9,7 +8,7 @@ import numpy as np
 from ray import tune
 from pathlib import Path
 
-from Utils.utils import str_to_bool
+from pytorchGLM.Utils.utils import str_to_bool
 
 
 def arg_parser(jupyter=False):
@@ -51,18 +50,21 @@ def arg_parser(jupyter=False):
         args = parser.parse_args()
     return vars(args)
 
-def load_params(args,ModelID,exp_dir_name=None,nKfold=0,debug=False):
+def load_params(args,ModelID,file_dict=None,exp_dir_name=None,nKfold=0,debug=False):
     """ Set up params dictionary for loading data and model info.
 
     Args:
         args (dict): arguments from argparse
         ModelID (int): Model Idenfiter
-        exp_dir_name (str, optional): _description_. Defaults to None.
-        nKfold (int, optional): _description_. Defaults to 0.
-        debug (bool, optional): _description_. Defaults to False.
+        file_dict (dict): Dictionary with raw data files paths. Defaults to None and constructs
+                        the dictionary assuming Niell Lab naming convension. 
+        exp_dir_name (str, optional): Optional experiment directory name if using own data. Defaults to None.
+        nKfold (int, optional): Kfold number for versioning. Defaults to 0.
+        debug (bool, optional): debug=True does not create experiment directories. Defaults to False.
 
     Returns:
         params (dict): dictionary of parameters
+        file_dict (dict): Dictionary with raw data files paths.
         exp (obj): Test_tube object for organizing files and tensorboard
     """
     from test_tube import Experiment
@@ -139,7 +141,7 @@ def load_params(args,ModelID,exp_dir_name=None,nKfold=0,debug=False):
         'quantiles':                [.05,.95],
         'thresh_cells':             args['thresh_cells'], 
         ##### Model Parameters #####
-        'lag_list':                 [0], #[-2,-1,0,1,2], # List of which timesteps to include in model fit
+        'lag_list':                 [-2,-1,0,1,2], # List of which timesteps to include in model fit
         'Nepochs':                  args['Nepochs'],
         'do_shuffle':               args['do_shuffle'],
         'do_norm':                  args['do_norm'],
@@ -180,7 +182,26 @@ def load_params(args,ModelID,exp_dir_name=None,nKfold=0,debug=False):
         with open(pfile_path, 'w') as file:
             doc = yaml.dump(params2, file, sort_keys=True)
 
-    return params, exp
+    if file_dict is None:
+        file_dict = {'cell': 0,
+                    'drop_slow_frames': False,
+                    'ephys': list(params['data_dir'].glob('*ephys_merge.json'))[0].as_posix(),
+                    'ephys_bin': list(params['data_dir'].glob('*Ephys.bin'))[0].as_posix(),
+                    'eye': list(params['data_dir'].glob('*REYE.nc'))[0].as_posix(),
+                    'imu': list(params['data_dir'].glob('*imu.nc'))[0].as_posix() if params['stim_cond'] == params['fm_dir'] else None,
+                    'mapping_json': Path('~/Research/Github/FreelyMovingEphys/config/channel_maps.json').expanduser(),
+                    'mp4': True,
+                    'name': params['date_ani2'] + '_control_Rig2_' + params['stim_cond'],  # 070921_J553RT
+                    'probe_name': 'DB_P128-6',
+                    'save': params['data_dir'].as_posix(),
+                    'speed': list(params['data_dir'].glob('*speed.nc'))[0].as_posix() if params['stim_cond'] == 'hf1_wn' else None,
+                    'stim_cond': 'light',
+                    'top': list(params['data_dir'].glob('*TOP1.nc'))[0].as_posix() if params['stim_cond'] == params['fm_dir'] else None,
+                    'world': list(params['data_dir'].glob('*world.nc'))[0].as_posix(), 
+                    'ephys_csv': list(params['data_dir'].glob('*Ephys_BonsaiBoardTS.csv'))[0].as_posix()}
+
+
+    return params, file_dict, exp
 
 
 

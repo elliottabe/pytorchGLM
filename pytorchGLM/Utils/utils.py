@@ -1,10 +1,7 @@
 import os 
-import ray
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from ray.actor import ActorHandle
-from tqdm.auto import tqdm
 
 
 ########## Checks if path exists, if not then creates directory ##########
@@ -117,36 +114,6 @@ def nanxcorr(x, y, maxlag=25):
 
     return cc_out, lags
 
-
-class EarlyStopping():
-    """
-    Early stopping to stop the training when the loss does not improve after
-    certain epochs.
-    """
-    def __init__(self, patience=5, min_delta=.005):
-        """
-        :param patience: how many epochs to wait before stopping when loss is
-               not improving
-        :param min_delta: minimum difference between new loss and old loss for
-               new loss to be considered as an improvement
-        """
-        self.patience = patience
-        self.min_delta = min_delta
-        self.counter = 0
-        self.best_loss = None
-        self.early_stop = False
-
-    def __call__(self, val_loss):
-        if self.best_loss == None:
-            self.best_loss = val_loss
-        elif (self.best_loss - val_loss) > self.min_delta:
-            self.best_loss = val_loss
-            self.counter = 0
-        elif (self.best_loss - val_loss) < self.min_delta:
-            self.counter += 1
-            if self.counter >= self.patience:
-                self.early_stop = True
-
 def str_to_bool(value):
     """ Parse strings to read argparse flag entries in as bool.
     
@@ -165,46 +132,18 @@ def str_to_bool(value):
     raise ValueError(f'{value} is not a valid boolean value')
 
 
-
-class ProgressBar:
-    progress_actor: ActorHandle
-    total: int
-    description: str
-    pbar: tqdm
-
-    def __init__(self, total: int, description: str = ""):
-        # Ray actors don't seem to play nice with mypy, generating
-        # a spurious warning for the following line,
-        # which we need to suppress. The code is fine.
-        self.progress_actor = ProgressBarActor.remote()  # type: ignore
-        self.total = total
-        self.description = description
-
-    @property
-    def actor(self) -> ActorHandle:
-        """Returns a reference to the remote `ProgressBarActor`.
-
-        When you complete tasks, call `update` on the actor.
-        """
-        return self.progress_actor
-
-    def print_until_done(self) -> None:
-        """Blocking call.
-
-        Do this after starting a series of remote Ray tasks, to which you've
-        passed the actor handle. Each of them calls `update` on the actor.
-        When the progress meter reaches 100%, this method returns.
-        """
-        pbar = tqdm(desc=self.description, total=self.total)
-        while True:
-            delta, counter = ray.get(self.actor.wait_for_update.remote())
-            pbar.update(delta)
-            if counter >= self.total:
-                pbar.close()
-                return
-
-
 def get_freer_gpu():
     os.system('nvidia-smi -q -d Memory |grep -A4 GPU|grep Used >tmp')
     memory_available = [int(x.split()[2]) for x in open('tmp', 'r').readlines()]
     return np.argmin(memory_available)
+
+def h5store(filename, df, **kwargs):
+    store = pd.HDFStore(filename)
+    store.put('mydata', df)
+    store.get_storer('mydata').attrs.metadata = kwargs
+    store.close()
+    
+def h5load(store):
+    data = store['mydata']
+    metadata = store.get_storer('mydata').attrs.metadata
+    return data, metadata

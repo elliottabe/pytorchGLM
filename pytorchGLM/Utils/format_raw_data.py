@@ -1,32 +1,22 @@
 ########## This .py file contains the functions related to formatting data assuming Niell Lab preprocessing pipeline ##########
-
-import argparse
-import ray
 import gc
 import cv2
-import time
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt 
 import xarray as xr
 
 from tqdm.auto import tqdm
-from pathlib import Path
 from scipy.interpolate import interp1d
-from scipy.ndimage import shift as imshift
 from sklearn.linear_model import LinearRegression
-from matplotlib.backends.backend_pdf import PdfPages
 from itertools import chain
 from sklearn.model_selection import GroupShuffleSplit
-from typing import Tuple
-from asyncio import Event
 from sklearn.utils import shuffle
 from scipy.signal import medfilt
-from scipy.stats import binned_statistic
 
-from Utils.utils import *
-import Utils.io_dict_to_hdf5 as ioh5
-from Utils.params import *
+import pytorchGLM.Utils.io_dict_to_hdf5 as ioh5
+from pytorchGLM.Utils.utils import *
+# from Utils.params import *
 
 def format_raw_data(file_dict, params, medfiltbins=11, **kwargs):
     """ Formatting raw data for Niell Lab freely moving ephys data 
@@ -249,7 +239,6 @@ def format_raw_data(file_dict, params, medfiltbins=11, **kwargs):
 
     ##### Calculating image norm #####
     print('Calculating Image Norm')
-    start = time.time()
     sz = np.shape(world_vid)
     world_vid_sm = np.zeros((sz[0],int(sz[1]/params['downsamp_vid']),int(sz[2]/params['downsamp_vid'])),dtype=np.uint8)
     for f in range(sz[0]):
@@ -376,8 +365,6 @@ def load_aligned_data(file_dict, params, reprocess=False):
         ioh5.save(model_file, model_data)
     return model_data
 
-
-
 def load_aligned_data(file_dict, params, reprocess=False):
     """ Load time aligned data from file or process raw data and return formatted data
 
@@ -410,8 +397,6 @@ def load_aligned_data(file_dict, params, reprocess=False):
         goodcells.to_hdf(ephys_file,key='goodcells', mode='w')
         ioh5.save(model_file, model_data)
     return model_data
-
-
 
 def format_data(data, params, frac=.1, shifter_train_size=.5, test_train_size=.75, do_norm=True, NKfold=1, thresh_cells=True, cut_inactive=True, move_medwin=11,**kwargs):
     """ Fully format data for model training
@@ -596,26 +581,10 @@ def load_Kfold_data(data,params,train_idx,test_idx):
 
 
 if __name__ == '__main__': 
+    import pytorchGLM as pglm
     # Input arguments
-    args = arg_parser()
+    args = pglm.arg_parser()
     ModelID = 1
-    params, exp = load_params(args,ModelID,exp_dir_name=None,nKfold=0,debug=False)
-
-    file_dict = {'cell': 0,
-                'drop_slow_frames': False,
-                'ephys': list(params['data_dir'].glob('*ephys_merge.json'))[0].as_posix(),
-                'ephys_bin': list(params['data_dir'].glob('*Ephys.bin'))[0].as_posix(),
-                'eye': list(params['data_dir'].glob('*REYE.nc'))[0].as_posix(),
-                'imu': list(params['data_dir'].glob('*imu.nc'))[0].as_posix() if params['stim_cond'] == params['fm_dir'] else None,
-                'mapping_json': Path('~/Research/Github/FreelyMovingEphys/config/channel_maps.json').expanduser(),
-                'mp4': True,
-                'name': params['date_ani2'] + '_control_Rig2_' + params['stim_cond'],  # 070921_J553RT
-                'probe_name': 'DB_P128-6',
-                'save': params['data_dir'].as_posix(),
-                'speed': list(params['data_dir'].glob('*speed.nc'))[0].as_posix() if params['stim_cond'] == 'hf1_wn' else None,
-                'stim_cond': 'light',
-                'top': list(params['data_dir'].glob('*TOP1.nc'))[0].as_posix() if params['stim_cond'] == params['fm_dir'] else None,
-                'world': list(params['data_dir'].glob('*world.nc'))[0].as_posix(), 
-                'ephys_csv': list(params['data_dir'].glob('*Ephys_BonsaiBoardTS.csv'))[0].as_posix()}
+    params, file_dict,exp = pglm.load_params(args,ModelID,exp_dir_name=None,nKfold=0,debug=False)
 
     data = load_aligned_data(file_dict, params, reprocess=True)
