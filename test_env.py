@@ -3,14 +3,11 @@ import logging
 
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt 
 import scipy as sp
 
 import xarray as xr
-from tqdm.notebook import tqdm
 
 import torch
-from kornia.geometry.transform import Affine
 torch.backends.cudnn.benchmark = True
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

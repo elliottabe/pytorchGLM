@@ -26,7 +26,7 @@ dependencies:
   - nvidia::cudatoolkit=>11.1
   - pip:
     - opencv-python
-    - ray[default]
+    - ray[tune]
     - sklearn
     - test_tube
     - kornia

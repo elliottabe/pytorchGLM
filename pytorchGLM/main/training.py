@@ -40,7 +40,8 @@ def train_network(network_config, params={},train_dataset=None,test_dataset=None
         model = load_model(model,params,filename,meanbias=meanbias)
     else:
         model = model_wrapper((network_config,BaseModel))
-        model = load_model(model,params,filename,meanbias=meanbias)
+        if filename is not None:
+            model = load_model(model,params,filename,meanbias=meanbias)
 
     device = "cpu"
     if torch.cuda.is_available():
@@ -56,8 +57,11 @@ def train_network(network_config, params={},train_dataset=None,test_dataset=None
 
     tloss_trace = torch.zeros((params['Nepochs'], network_config['Ncells']), dtype=torch.float)
     vloss_trace = torch.zeros((params['Nepochs'], network_config['Ncells']), dtype=torch.float)
-
-    for epoch in (range(params['Nepochs'])):  # loop over the dataset multiple times
+    if network_config['single_trial'] is not None:
+        pbar = tqdm((range(params['Nepochs'])))
+    else: 
+        pbar = (range(params['Nepochs']))  
+    for epoch in pbar:  # loop over the dataset multiple times
         for i, minibatch in enumerate(train_dataloader, 0):
             # get the inputs; minibatch is a list of [vid, pos, y]
             vid,pos,y = minibatch
@@ -88,14 +92,17 @@ def train_network(network_config, params={},train_dataset=None,test_dataset=None
                 loss = model.loss(outputs, y)
                 vloss_trace[epoch] = loss.detach().cpu()
 
-    # Here we save a checkpoint. It is automatically registered with
-    # Ray Tune and can be accessed through `session.get_checkpoint()`
-    # API in future iterations.
-    model_name = 'GLM_{}_ModelID{:d}_dt{:03d}_T{:02d}_NB{}_{}.pt'.format(params['model_type'], params['ModelID'],int(params['model_dt']*1000), params['nt_glm_lag'], params['Nepochs'],session.get_trial_name())
-    torch.save((model.state_dict(), optimizer.state_dict()), params['save_model']/ model_name)
-    checkpoint = Checkpoint.from_dict({'step':epoch})
-    # session.report({"avg_loss": float(torch.mean(vloss_trace[-1],dim=-1).numpy())})
-    session.report({'avg_loss':float(torch.mean(vloss_trace[-1],dim=-1).numpy())}, checkpoint=checkpoint)
+    if network_config['single_trial'] is not None:
+        model_name = '{}_ModelID{:d}_dt{:03d}_T{:02d}_NB{}_{}.pt'.format(params['model_type'], params['ModelID'],int(params['model_dt']*1000), params['nt_glm_lag'], params['Nepochs'],network_config['single_trial'])
+        torch.save((model.state_dict(), optimizer.state_dict()), params['save_model']/ model_name)
+        return tloss_trace,vloss_trace,model,optimizer
+    else:
+        # Here we save a checkpoint. It is automatically registered with Ray Tune and can be accessed through `session.get_checkpoint()`
+        model_name = 'GLM_{}_ModelID{:d}_dt{:03d}_T{:02d}_NB{}_{}.pt'.format(params['model_type'], params['ModelID'],int(params['model_dt']*1000), params['nt_glm_lag'], params['Nepochs'],session.get_trial_name())
+        torch.save((model.state_dict(), optimizer.state_dict()), params['save_model']/ model_name)
+        checkpoint = Checkpoint.from_dict({'step':epoch})
+        # session.report({"avg_loss": float(torch.mean(vloss_trace[-1],dim=-1).numpy())})
+        session.report({'avg_loss':float(torch.mean(vloss_trace[-1],dim=-1).numpy())}, checkpoint=checkpoint)
 
     print("Finished Training")
     # return dict(avg_loss=float(torch.mean(vloss_trace[-1],dim=-1).numpy()))

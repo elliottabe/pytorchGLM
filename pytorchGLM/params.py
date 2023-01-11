@@ -205,7 +205,7 @@ def load_params(args,ModelID,file_dict=None,exp_dir_name=None,nKfold=0,debug=Fal
 
 
 
-def make_network_config(params,single_trial=False):
+def make_network_config(params,single_trial=None,custom=False):
     """ Create Network Config dictionary for hyperparameter search
 
     Args:
@@ -219,15 +219,17 @@ def make_network_config(params,single_trial=False):
     network_config = {}
     network_config['in_features']   = params['nk']
     network_config['Ncells']        = params['Ncells']
-    network_config['shift_in']      = params['shift_in']
-    network_config['shift_hidden']  = params['shift_hidden']
-    network_config['shift_out']     = params['shift_out']
-    network_config['LinMix']        = params['LinMix']
-    network_config['pos_features']  = params['pos_features']
-    network_config['lr_shift']      = 1e-2
+    if custom == False:
+        network_config['shift_in']      = params['shift_in']
+        network_config['shift_hidden']  = params['shift_hidden']
+        network_config['shift_out']     = params['shift_out']
+        network_config['LinMix']        = params['LinMix']
+        network_config['pos_features']  = params['pos_features']
+        network_config['lr_shift']      = 1e-2
     network_config['lr_w']          = 1e-3
     network_config['lr_b']          = 1e-3
     network_config['lr_m']          = 1e-3
+    network_config['single_trial']  = single_trial
     if params['NoL1']:
         network_config['L1_alpha']  = None
         network_config['L1_alpham'] = None
@@ -239,9 +241,9 @@ def make_network_config(params,single_trial=False):
         network_config['L2_lambda']   = 0
         network_config['L2_lambda_m'] = 0
     else:
-        if single_trial:
-            network_config['L2_lambda_m'] = np.logspace(-2, 3, 20)[1]
+        if single_trial is not None:
             network_config['L2_lambda']   = np.logspace(-2, 3, 20)[1]
+            network_config['L2_lambda_m'] = np.logspace(-2, 3, 20)[1]
         else:
             network_config['L2_lambda']   = tune.grid_search(np.logspace(-2, 3, 2))
             network_config['L2_lambda_m'] = tune.grid_search(np.logspace(-2, 3, 2))
