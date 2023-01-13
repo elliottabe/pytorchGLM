@@ -142,25 +142,27 @@ def load_params(args,ModelID,file_dict=None,exp_dir_name=None,nKfold=0,debug=Fal
         'thresh_cells':             args['thresh_cells'], 
         ##### Model Parameters #####
         'lag_list':                 [-2,-1,0,1,2], # List of which timesteps to include in model fit
-        'Nepochs':                  args['Nepochs'],
-        'do_shuffle':               args['do_shuffle'],
-        'do_norm':                  args['do_norm'],
-        'train_shifter':            args['train_shifter'],
-        'ModelID':                  ModelID,
+        'Nepochs':                  args['Nepochs'], # Number of steps for training
+        'do_shuffle':               args['do_shuffle'], # do_shuffle=True, shuffles spikes
+        'do_norm':                  args['do_norm'], # z-scores inputs
+        'train_shifter':            args['train_shifter'], # flag for training shifter network
+        'ModelID':                  ModelID, # ModelID 1=Vis, 2=Add, 3=Mult., 4=HeadFixed
         'load_Vis' :                True if ModelID>1 else False,
         'LinMix':                   True if ModelID==2 else False,
-        'Kfold':                    args['Kfold'],
-        'NoL1':                     args['NoL1'],
-        'NoL2':                     args['NoL2'],
-        'position_vars':            ['th','phi','pitch','roll','speed','eyerad'], # Which variables to use for position fits
+        'Kfold':                    args['Kfold'], # Number of Kfolds. Default=1
+        'NoL1':                     args['NoL1'], # Remove L1 regularization
+        'NoL2':                     args['NoL2'], # Remove L2 regularization
+        'position_vars':            ['th','phi','pitch','roll'], # ,'speed','eyerad'], # Which variables to use for position fits
         'use_spdpup':               args['use_spdpup'],
         'only_spdpup':              args['only_spdpup'],
         'EyeHead_only':             args['EyeHead_only'],
         'EyeHead_only_run':         args['EyeHead_only_run'],
         'SimRF':                    args['SimRF'],
         'NoShifter':                args['NoShifter'],
-        'downsamp_vid':             args['ds_vid'],
-        'shifter_5050':             args['shifter_5050'],
+        'downsamp_vid':             args['ds_vid'], # Downsample factor. Default=4
+        'shifter_5050':             args['shifter_5050'], # Shifter 50/50 controls
+        'initW':                    'zero', # initialize W method. 'zero' or 'normal' 
+        'optimizer':                'adam', # optimizer: 'adam' or 'sgd'
         'bin_length':               40,
         'shifter_train_size':       .9,
         'shift_hidden':             20,
@@ -219,6 +221,8 @@ def make_network_config(params,single_trial=None,custom=False):
     network_config = {}
     network_config['in_features']   = params['nk']
     network_config['Ncells']        = params['Ncells']
+    network_config['initW']         = params['initW']
+    network_config['optimizer']         = params['optimizer']
     if custom == False:
         network_config['shift_in']      = params['shift_in']
         network_config['shift_hidden']  = params['shift_hidden']

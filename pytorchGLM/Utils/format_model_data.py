@@ -124,6 +124,7 @@ def format_pytorch_data(data,params,train_idx,test_idx, device='cuda'):
     params['nks'] = np.shape(data['train_vid'])[1:]
     params['nk'] = params['nks'][0]*params['nks'][1]*params['nt_glm_lag']
     if params['train_shifter']:
+        ##### Only take timepoints within quartile range for training shifter #####
         rolled_vid = np.hstack([np.roll(data['model_vid_sm'], nframes, axis=0) for nframes in params['lag_list']])
         move_quantiles = np.quantile(model_pos,params['quantiles'],axis=0)
         train_range = np.all(((pos_train>move_quantiles[0]) & (pos_train<move_quantiles[1])),axis=1)
@@ -135,6 +136,7 @@ def format_pytorch_data(data,params,train_idx,test_idx, device='cuda'):
         ytr = torch.from_numpy(data['train_nsp'][train_range].astype(np.float32))
         yte = torch.from_numpy(data['test_nsp'][test_range].astype(np.float32))
     elif params['NoShifter']:
+        ##### Use raw video #####
         if params['crop_input'] != 0:
             model_vid_sm = data['model_vid_sm'][:,params['crop_input']:-params['crop_input'],params['crop_input']:-params['crop_input']]
         rolled_vid = np.hstack([np.roll(model_vid_sm, nframes, axis=0) for nframes in params['lag_list']])
@@ -268,6 +270,9 @@ def setup_model_training(model,params,network_config):
                 elif ('bias' in name):
                     param_list.append({'params':[p],'lr':network_config['lr_b']})
 
-    optimizer = optim.Adam(params=param_list)
+    if network_config['optimizer'].lower()=='adam':
+        optimizer = optim.Adam(params=param_list)
+    else:
+        optimizer = optim.SGD(params=param_list)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=int(params['Nepochs']/5))
     return optimizer, scheduler

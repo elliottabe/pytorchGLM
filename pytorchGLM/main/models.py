@@ -36,8 +36,10 @@ class BaseModel(nn.Module):
         self.Cell_NN = nn.Sequential(nn.Linear(self.in_features, self.N_cells,bias=True))
         self.activations = nn.ModuleDict({'SoftPlus':nn.Softplus(),
                                           'ReLU': nn.ReLU(),})
-        torch.nn.init.uniform_(self.Cell_NN[0].weight, a=-1e-6, b=1e-6)
-        
+        if self.config['initW'] == 'zero':
+            torch.nn.init.uniform_(self.Cell_NN[0].weight, a=-1e-6, b=1e-6)
+        elif self.config['initW'] == 'normal':
+            torch.nn.init.normal_(self.Cell_NN[0].weight,std=1/self.in_features)
         # Initialize Regularization parameters
         self.L1_alpha = config['L1_alpha']
         if self.L1_alpha != None:
