@@ -57,6 +57,15 @@ class BaseModel(nn.Module):
         return ret
 
     def loss(self,Yhat, Y): 
+        """ Loss function for network with L1 regularization
+
+        Args:
+            Yhat (torch.Tensor): Prediction of target
+            Y (torch.Tensor): Ground Truth of target
+
+        Returns:
+            loss_vec: Loss vector
+        """
         loss_vec = torch.mean((Yhat-Y)**2,axis=0)
         if self.L1_alpha != None:
             l1_reg0 = torch.stack([torch.linalg.vector_norm(NN_params,ord=1) for name, NN_params in self.Cell_NN.named_parameters() if '0.weight' in name])
@@ -124,15 +133,17 @@ class MixedNetwork(BaseModel):
             in_feature: size of the input dimension
             N_cells: the number of cells to fit
             L1_alpha: L1 regularization value for visual network
-            L1_alpham: L1 regularization value for position network 
+            L1_alpha_m: L1 regularization value for position network 
             move_feature: the number of position features 
             LinMix: Additive or Multiplicative mixing. LinMix=True for additive, LinMix=False for multiplicative        
         '''
         self.config = config
         self.LinMix = config['LinMix']
         ##### Position Network Initialization #####
-        if config['L1_alpham'] != None:
-            self.register_buffer('alpha_m',config['L1_alpham']*torch.ones(1))
+        if config['L1_alpha_m'] != None:
+            self.register_buffer('alpha_m',config['L1_alpha_m']*torch.ones(1))
+        else:
+            self.L1_alpha_m = None
 
         self.posNN = nn.Sequential(nn.Linear(config['pos_features'], N_cells))
         torch.nn.init.uniform_(self.posNN[0].weight,a=-1e-6,b=1e-6) 
@@ -153,17 +164,26 @@ class MixedNetwork(BaseModel):
             move_out = torch.abs(self.posNN(pos_inputs))
             output = output*move_out
         ret = self.activations['ReLU'](output)
+        return ret
 
     def loss(self,Yhat, Y): 
+        """ Loss function for network with L1 regularization
+
+        Args:
+            Yhat (torch.Tensor): Prediction of target
+            Y (torch.Tensor): Ground Truth of target
+
+        Returns:
+            loss_vec: Loss vector
+        """
         loss_vec = torch.mean((Yhat-Y)**2,axis=0)
         if self.L1_alpha != None:
             l1_reg0 = self.alpha*(torch.linalg.norm(self.Cell_NN[0].weight,axis=1,ord=1))
         else: 
             l1_reg0 = 0
-            l1_reg1 = 0
-        if self.L1_alpham != None:
+        if self.L1_alpha_m != None:
             l1_regm = self.alpha_m*(torch.linalg.norm(self.posNN[0].weight,axis=1,ord=1))
         else: 
             l1_regm = 0
-        loss_vec = loss_vec + l1_reg0 + l1_reg1 + l1_regm
+        loss_vec = loss_vec + l1_reg0  + l1_regm
         return loss_vec

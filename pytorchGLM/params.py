@@ -9,22 +9,26 @@ from ray import tune
 from pathlib import Path
 
 from pytorchGLM.Utils.utils import str_to_bool
+from pytorchGLM.Utils.utils import h5load
 
 
 def arg_parser(jupyter=False):
     parser = argparse.ArgumentParser(description=__doc__)
     ##### Directory Parameters #####
-    parser.add_argument('--date_ani',           type=str, default='070921/J553RT') #'020422/J577RT' '122021/J581RT')# '020422/J577RT')#
+    parser.add_argument('--date_ani',           type=str, default='070921/J553RT') 
     parser.add_argument('--base_dir',           type=str, default='~/Research/SensoryMotorPred_Data/Testing')
     parser.add_argument('--fig_dir',            type=str, default='~/Research/SensoryMotorPred_Data/FigTesting')
     parser.add_argument('--data_dir',           type=str, default='~/Goeppert/nlab-nas/Dylan/freely_moving_ephys/ephys_recordings/')
     ##### Simulation Parameters ##### 
-    parser.add_argument('--model_dt',           type=float, default=0.05)
-    parser.add_argument('--ds_vid',             type=int, default=4)
-    parser.add_argument('--Kfold',              type=int, default=0)
-    parser.add_argument('--ModRun',             type=str,default='1')
-    parser.add_argument('--Nepochs',            type=int, default=10)
-    parser.add_argument('--load_ray',           type=str_to_bool, default=False)
+    parser.add_argument('--model_dt',           type=float,       default=0.05)
+    parser.add_argument('--ds_vid',             type=int,         default=4)
+    parser.add_argument('--Kfold',              type=int,         default=0)
+    parser.add_argument('--ModRun',             type=str,         default='-1')
+    parser.add_argument('--Nepochs',            type=int,         default=5000)
+    parser.add_argument('--num_samples',        type=int,         default=25, help='number of samples for param search')
+    parser.add_argument('--cpus_per_task',      type=float,       default=6)
+    parser.add_argument('--gpus_per_task',      type=float,       default=.25)
+    parser.add_argument('--load_ray',           type=str_to_bool, default=True)
     ##### Model Paremeters #####    
     parser.add_argument('--do_norm',            type=str_to_bool, default=True)
     parser.add_argument('--crop_input',         type=str_to_bool, default=True)
@@ -77,6 +81,7 @@ def load_params(args,ModelID,file_dict=None,exp_dir_name=None,nKfold=0,debug=Fal
             fm_dir = 'fm1'
         stim_cond = fm_dir
     else:
+        fm_dir = 'fm1'
         stim_cond = 'hf1_wn' 
 
     ##### Create directories and paths #####
@@ -118,6 +123,10 @@ def load_params(args,ModelID,file_dict=None,exp_dir_name=None,nKfold=0,debug=Fal
     save_dir_fm_exp.mkdir(parents=True, exist_ok=True)
     save_dir_hf_exp = save_dir_hf / exp.save_dir.name
     save_dir_hf_exp.mkdir(parents=True, exist_ok=True)
+    save_model_shift = save_dir_fm_exp / 'Shifter'
+    save_model_shift.mkdir(parents=True, exist_ok=True)
+    if args['train_shifter']:
+        save_model = save_model_shift
 
     params = {
         ##### Data Parameters #####
@@ -136,6 +145,7 @@ def load_params(args,ModelID,file_dict=None,exp_dir_name=None,nKfold=0,debug=Fal
         'fig_dir':                  fig_dir,
         'save_model':               save_model,
         'save_model_Vis':           save_model_Vis,
+        'save_model_shift':         save_model_shift,
         'date_ani2':                date_ani2,
         'model_dt':                 args['model_dt'],
         'quantiles':                [.05,.95],
@@ -172,7 +182,8 @@ def load_params(args,ModelID,file_dict=None,exp_dir_name=None,nKfold=0,debug=Fal
 
     params['nt_glm_lag']=len(params['lag_list']) # number of timesteps for model fits
     params['data_name'] = '_'.join([params['date_ani2'],params['stim_cond']])
-    
+    params['data_name_fm'] = '_'.join([params['date_ani2'],params['fm_dir']])
+
     ##### Saves yaml of parameters #####
     if debug==False:
         params2=params.copy()
@@ -212,9 +223,9 @@ def make_network_config(params,single_trial=None,custom=False):
 
     Args:
         params (dict): key parameters dictionary
-        single_trial (bool): boolean for if testing single trial. Default=False
-        device (string): cuda
-
+        single_trial (int): trial number for if testing single trial. If None, 
+                            assumes using ray tune hyperparam search. Default=None
+        custom (bool): If custom data ommit shifter params
     Returns:
         network_config (dict): dictionary with hyperparameters
     """
@@ -236,19 +247,23 @@ def make_network_config(params,single_trial=None,custom=False):
     network_config['single_trial']  = single_trial
     if params['NoL1']:
         network_config['L1_alpha']  = None
-        network_config['L1_alpham'] = None
+        network_config['L1_alpha_m'] = None
     else:
         network_config['L1_alpha']  = .0001
-        network_config['L1_alpham'] = None
+        network_config['L1_alpha_m'] = None
 
     if params['NoL2']:
         network_config['L2_lambda']   = 0
         network_config['L2_lambda_m'] = 0
+        initial_params={}
     else:
         if single_trial is not None:
             network_config['L2_lambda']   = np.logspace(-2, 3, 20)[1]
             network_config['L2_lambda_m'] = np.logspace(-2, 3, 20)[1]
+            initial_params={}
         else:
-            network_config['L2_lambda']   = tune.grid_search(np.logspace(-2, 3, 2))
-            network_config['L2_lambda_m'] = tune.grid_search(np.logspace(-2, 3, 2))
-    return network_config
+            network_config['L2_lambda']   = tune.loguniform(1e-2, 1e3)
+            # network_config['L2_lambda_m'] = tune.loguniform(1e-2, 1e3)
+            network_config['L2_lambda_m'] = 0 #tune.loguniform(1e-2, 1e3)
+            initial_params = [{'L2_lambda':.01},]
+    return network_config, initial_params

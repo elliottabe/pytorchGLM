@@ -238,7 +238,6 @@ def format_raw_data(file_dict, params, medfiltbins=11, **kwargs):
 
 
     ##### Calculating image norm #####
-    print('Calculating Image Norm')
     sz = np.shape(world_vid)
     world_vid_sm = np.zeros((sz[0],int(sz[1]/params['downsamp_vid']),int(sz[2]/params['downsamp_vid'])),dtype=np.uint8)
     for f in range(sz[0]):
@@ -247,6 +246,7 @@ def format_raw_data(file_dict, params, medfiltbins=11, **kwargs):
     del world_vid
     gc.collect()
 
+    # Build dictionary formatted for interpolating
     raw_data = {
                 'eye':{
                     'th':     th,
@@ -256,8 +256,8 @@ def format_raw_data(file_dict, params, medfiltbins=11, **kwargs):
                 },
                 'acc': {
                     'gz':     gz,
-                    'roll':  groll,
-                    'pitch': gpitch,    
+                    'roll':   groll,
+                    'pitch':  gpitch,    
                     'accTS':  accT,
                 },
                 'top':{
@@ -298,7 +298,7 @@ def interp_raw_data(raw_data, align_t, model_dt=0.05, goodcells=None):
     model_data = {}
     for key0 in raw_data.keys():
             for key1 in raw_data[key0].keys():
-                if 'TS' not in key1:
+                if ('TS' not in key1) & (np.size(raw_data[key0][key1])>0):
                     if 'vid' in key0: # Z score video then interpolate
                         std_im = np.std(raw_data[key0][key1], axis=0, dtype=float)
                         img_norm = ((raw_data[key0][key1]-np.mean(raw_data[key0][key1],axis=0,dtype=float))/std_im).astype(float)
@@ -313,10 +313,10 @@ def interp_raw_data(raw_data, align_t, model_dt=0.05, goodcells=None):
                         model_vid_sm[np.isnan(model_vid_sm)]=0
                         model_data['model_'+ key1] = model_vid_sm
                     else:
-                        interp = interp1d(raw_data[key0][key0+'TS'],raw_data[key0][key1],axis=0, bounds_error=False)
+                        interp = interp1d(raw_data[key0][key0+'TS'],pd.DataFrame(raw_data[key0][key1]).interpolate(limit_direction='both').to_numpy().squeeze(),axis=0, bounds_error=False)
                         model_data['model_'+ key1] = interp(model_t+model_dt/2)
     model_data['model_t'] = model_t
-    if 'acc' in raw_data.keys():
+    if ('acc' in raw_data.keys()) & (np.size(raw_data['acc']['gz'])>0):
         model_data['model_active'] = np.convolve(np.abs(model_data['model_gz']), np.ones(int(1/model_dt)), 'same') / len(np.ones(int(1/model_dt)))
 
     # get spikes / rate
@@ -365,38 +365,6 @@ def load_aligned_data(file_dict, params, reprocess=False):
         ioh5.save(model_file, model_data)
     return model_data
 
-def load_aligned_data(file_dict, params, reprocess=False):
-    """ Load time aligned data from file or process raw data and return formatted data
-
-    Args:
-        file_dict (dict): file dictionary containing raw data paths.
-        params (dict): parameter dictionary holding key parameters for formatting.
-        reprocess (bool, optional): reprocess raw data. Defaults to False.
-
-    Returns:
-        model_data (dict): returns dictionary with time aligned model data
-    """
-
-    model_file = params['save_dir'] / 'ModelData_{}_dt{:03d}_rawWorldCam_{:d}ds.h5'.format(params['data_name'],int(params['model_dt']*1000),int(params['downsamp_vid']))
-    if (model_file.exists()) & (reprocess==False):
-        model_data = ioh5.load(model_file)
-    else:
-        raw_data, goodcells = format_raw_data(file_dict,params)
-        model_data = interp_raw_data(raw_data,raw_data['vid']['vidTS'],model_dt=params['model_dt'],goodcells=goodcells)
-        if params['free_move']:
-            ##### Saving average and std of parameters for centering and scoring across conditions #####
-            FM_move_avg = np.zeros((2,6))
-            FM_move_avg[:,0] = np.array([np.nanmean(model_data['model_th']),np.nanstd(model_data['model_th'])])
-            FM_move_avg[:,1] = np.array([np.nanmean(model_data['model_phi']),np.nanstd(model_data['model_phi'])])
-            FM_move_avg[:,2] = np.array([np.nanmean(model_data['model_roll']),np.nanstd(model_data['model_roll'])])
-            FM_move_avg[:,3] = np.array([np.nanmean(model_data['model_pitch']),np.nanstd(model_data['model_pitch'])])
-            FM_move_avg[:,4] = np.array([np.nanmean(model_data['model_speed']),np.nanmax(model_data['model_speed'])])
-            FM_move_avg[:,5] = np.array([np.nanmean(model_data['model_eyerad']),np.nanmax(model_data['model_eyerad'])])
-            np.save(params['save_dir_fm']/'FM_MovAvg_{}_dt{:03d}.npy'.format(params['data_name'],int(params['model_dt']*1000)),FM_move_avg)
-        ephys_file = params['save_dir'] / 'RawEphysData_{}.h5'.format(params['data_name'])
-        goodcells.to_hdf(ephys_file,key='goodcells', mode='w')
-        ioh5.save(model_file, model_data)
-    return model_data
 
 def format_data(data, params, frac=.1, shifter_train_size=.5, test_train_size=.75, do_norm=True, NKfold=1, thresh_cells=True, cut_inactive=True, move_medwin=11,**kwargs):
     """ Fully format data for model training
@@ -415,7 +383,9 @@ def format_data(data, params, frac=.1, shifter_train_size=.5, test_train_size=.7
         move_medwin (int, optional): window to smooth roll/pitch. Defaults to 11.
 
     Returns:
-        _type_: _description_
+        data (dict): formatted dictionary of data
+        train_idx_list: list of train indecies for CV
+        test_idx_list: list of test indecies for CV
     """
     ##### Load in preprocessed data #####
     if params['free_move']:
@@ -434,7 +404,7 @@ def format_data(data, params, frac=.1, shifter_train_size=.5, test_train_size=.7
     if cut_inactive:
         ##### return only active data #####
         for key in data.keys():
-            if (key != 'model_nsp') & (key != 'model_active') & (key != 'unit_nums') & (key != 'model_vis_sm_shift'):
+            if (key != 'model_nsp') & (key != 'model_active') & (key != 'unit_nums') & (key != 'model_vid_sm_shift'):
                 if len(data[key])>0:
                     data[key] = data[key][good_idxs] # interp_nans(data[key]).astype(float)
             elif (key == 'model_nsp'):
@@ -499,9 +469,9 @@ def format_data(data, params, frac=.1, shifter_train_size=.5, test_train_size=.7
                 f25,l75=int((data['model_nsp'].shape[0])*.5),int((data['model_nsp'].shape[0])*.5) # Checking first 25% and last 25% firing rate for drift
                 scaled_fr = (np.nanmean(data['model_nsp'][:f25], axis=0)/np.nanstd(data['model_nsp'][:f25], axis=0) - np.nanmean(data['model_nsp'][l75:], axis=0)/np.nanstd(data['model_nsp'][l75:], axis=0))/params['model_dt']
                 bad_cells = np.where((mean_thresh | (np.abs(scaled_fr)>4)))[0] # Locating bad units      
-                np.save(params['save_dir_fm']/'bad_cells_{}.npy'.format(params['data_name']),bad_cells)
+                np.save(params['save_dir_fm']/'bad_cells_{}.npy'.format(params['data_name_fm'],bad_cells))
         else:
-            bad_cells = np.load(params['save_dir_fm']/'bad_cells_{}.npy'.format(params['data_name']))
+            bad_cells = np.load(params['save_dir_fm']/'bad_cells_{}.npy'.format(params['data_name_fm']))
 
         print('Tot_units: {}'.format(data['unit_nums'].shape))
         data['model_nsp'] = np.delete(data['model_nsp'],bad_cells,axis=1) # removing bad units
@@ -510,7 +480,7 @@ def format_data(data, params, frac=.1, shifter_train_size=.5, test_train_size=.7
         
     data['model_dth'] = np.diff(data['model_th'],append=0)
     data['model_dphi'] = np.diff(data['model_phi'],append=0)
-    FM_move_avg = np.load(params['save_dir_fm']/'FM_MovAvg_{}_dt{:03d}.npy'.format(params['data_name'],int(params['model_dt']*1000)))
+    FM_move_avg = np.load(params['save_dir_fm']/'FM_MovAvg_{}_dt{:03d}.npy'.format(params['data_name_fm'],int(params['model_dt']*1000)))
     data['model_th'] = data['model_th'] - FM_move_avg[0,0]
     data['model_phi'] = (data['model_phi'] - FM_move_avg[0,1])
     if do_norm:

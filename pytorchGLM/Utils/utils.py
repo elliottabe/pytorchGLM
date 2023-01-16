@@ -138,12 +138,29 @@ def get_freer_gpu():
     return np.argmin(memory_available)
 
 def h5store(filename, df, **kwargs):
+    """_summary_
+
+    Args:
+        filename (str): path to h5 file
+        df (pd.DataFrame): DataFrame to save
+        **kwards (dict): dictionary key/values to save as metadata
+    """
     store = pd.HDFStore(filename)
     store.put('mydata', df)
     store.get_storer('mydata').attrs.metadata = kwargs
     store.close()
     
-def h5load(store):
+def h5load(filename):
+    """ load h5 pandas DataFrame with metadata
+
+    Args:
+        filename (str): path to h5 file
+
+    Returns:
+        data (pd.DataFrame): DataFrame 
+        metadata (dict): dictionary containing metadata
+    """
+    store = pd.HDFStore(filename)
     data = store['mydata']
     metadata = store.get_storer('mydata').attrs.metadata
     return data, metadata
