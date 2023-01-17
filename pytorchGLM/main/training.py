@@ -46,9 +46,9 @@ def train_network(network_config, xtr, xte, xtr_pos, xte_pos, ytr, yte, params={
 
     device = "cpu"
     if torch.cuda.is_available():
-        device = "cuda:0"
-        if torch.cuda.device_count() > 1:
-            model = nn.DataParallel(model)
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        # if torch.cuda.device_count() > 1:
+        #     model = nn.DataParallel(model)
             
     model.to(device)
 
@@ -72,7 +72,7 @@ def train_network(network_config, xtr, xte, xtr_pos, xte_pos, ytr, yte, params={
         loss.backward(torch.ones_like(loss))
         optimizer.step()
 
-        # print statistics
+        # save loss
         tloss_trace[epoch] = loss.detach().cpu()
             
         if scheduler is not None:
@@ -80,7 +80,6 @@ def train_network(network_config, xtr, xte, xtr_pos, xte_pos, ytr, yte, params={
 
         # Validation loss
         with torch.no_grad():
-            # get the inputs; minibatch is a list of [vid, pos, y]
             outputs = model(xte,xte_pos)
             loss = model.loss(outputs, yte)
             vloss_trace[epoch] = loss.detach().cpu()
@@ -115,11 +114,11 @@ def evaluate_networks(best_network,network_config,params,xte,xte_pos,yte,device=
     ##### Load best network from saved ray experiment ######
     state_dict, _ = torch.load(best_network,map_location='cpu')
     if params['train_shifter']:
-        model = pglm.model_wrapper((network_config,pglm.ShifterNetwork))
+        model = model_wrapper((network_config,ShifterNetwork))
     elif (params['ModelID']==2) | (params['ModelID']==3):
-        model = pglm.model_wrapper((network_config,pglm.MixedNetwork))
+        model = model_wrapper((network_config,MixedNetwork))
     else:
-        model = pglm.model_wrapper((network_config,pglm.BaseModel))
+        model = model_wrapper((network_config,BaseModel))
     model.load_state_dict(state_dict)
     model.to(device)
 
@@ -142,25 +141,25 @@ def evaluate_networks(best_network,network_config,params,xte,xte_pos,yte,device=
     for key in state_dict.keys():
         GLM_Dict[key]  = state_dict[key].cpu().numpy()
 
-    model_name = '{}_ModelID{:d}_dt{:03d}_T{:02d}_NB{}_{}_Best.h5'.format(params['model_type'], params['ModelID'],int(params['model_dt']*1000), params['nt_glm_lag'], params['Nepochs'])
-    ioh5.save(params['save_model']/model_name)
+    model_name = '{}_ModelID{:d}_dt{:03d}_T{:02d}_NB{}_Best.h5'.format(params['model_type'], params['ModelID'],int(params['model_dt']*1000), params['nt_glm_lag'], params['Nepochs'])
+    ioh5.save(params['save_model']/model_name,GLM_Dict)
 
 
-def evaluate_shifter(args,params):
+def evaluate_shifter(args,network_config,params):
     from kornia.geometry.transform import Affine
     import pytorchGLM.Utils.io_dict_to_hdf5 as ioh5
     from matplotlib.backends.backend_pdf import PdfPages
 
     ##### Loading Best Shifter Network #####
     Nepochs_saved = params['Nepochs']
-    params, file_dict, exp = pglm.load_params(args,ModelID,exp_dir_name=None,nKfold=0,debug=False)
-    params = pglm.get_modeltype(params)
-    exp_filename = list((params['save_model_Vis'] / ('NetworkAnalysis/')).glob('*experiment_data.h5'))[-1]
-    df,metadata= pglm.h5load(exp_filename)
-    best_network = params['save_model_shift']/metadata['best_network'].name
+    params, file_dict, _ = load_params(args,1,exp_dir_name=None,nKfold=0,debug=False)
+    params = get_modeltype(params)
+    exp_filename = list((params['save_model_shift'] / ('NetworkAnalysis/')).rglob('*experiment_data.h5'))[-1]
+    df,metadata= h5load(exp_filename)
+    best_network = metadata['best_network']
 
     state_dict,_ = torch.load(best_network,map_location='cpu')
-    model = pglm.model_wrapper((network_config,pglm.ShifterNetwork))
+    model = model_wrapper((network_config,ShifterNetwork))
     model.load_state_dict(state_dict)
     model.cpu()
 
@@ -192,7 +191,7 @@ def evaluate_shifter(args,params):
         crange_list = np.stack((np.max(np.abs(shift_mat[:2])),np.max(np.abs(shift_mat[:2])), np.max(np.abs(shift_mat[2])), np.max(np.abs(shift_mat[2]))))
         for n in range(4):
             im1=ax[n].imshow(shift_matshow[n],vmin=-crange_list[n], vmax=crange_list[n], origin='lower', cmap='RdBu_r')
-            cbar1 = pglm.add_colorbar(im1)
+            cbar1 = add_colorbar(im1)
             ax[n].set_xticks(ticks)
             ax[n].set_xticklabels(ticklabels)
             ax[n].set_yticks(ticks)
@@ -206,8 +205,8 @@ def evaluate_shifter(args,params):
         plt.close()
 
     ##### Save FM Shifted World Cam #####
-    data = pglm.load_aligned_data(file_dict, params, reprocess=False)
-    data,train_idx_list,test_idx_list = pglm.format_data(data, params,do_norm=True,thresh_cells=True,cut_inactive=True)
+    data = load_aligned_data(file_dict, params, reprocess=False)
+    data,train_idx_list,test_idx_list = format_data(data, params,do_norm=True,thresh_cells=True,cut_inactive=True)
     model_pos = np.hstack((data['model_th'][:, np.newaxis], data['model_phi'][:, np.newaxis],data['model_pitch'][:, np.newaxis]))
     ds=4/params['downsamp_vid']
     with torch.no_grad():
@@ -224,18 +223,18 @@ def evaluate_shifter(args,params):
     args['free_move'] = False
     args['train_shifter']=True
     args['Nepochs'] = 5000
-    params, file_dict, exp = pglm.load_params(args,ModelID,exp_dir_name=None,nKfold=0,debug=False)
+    params, file_dict, exp = load_params(args,1,exp_dir_name=None,nKfold=0,debug=False)
     params['lag_list'] = [0]
     params['nt_glm_lag']=len(params['lag_list'])
-    data = pglm.load_aligned_data(file_dict, params, reprocess=False)
-    data,train_idx_list,test_idx_list = pglm.format_data(data, params,do_norm=True,thresh_cells=True,cut_inactive=True)
+    data = load_aligned_data(file_dict, params, reprocess=False)
+    data,train_idx_list,test_idx_list = format_data(data, params,do_norm=True,thresh_cells=True,cut_inactive=True)
     model_pos = np.hstack((data['model_th'][:, np.newaxis], data['model_phi'][:, np.newaxis],data['model_pitch'][:, np.newaxis]))
     ds=4/params['downsamp_vid']
     with torch.no_grad():
         shift_out = model.shifter_nn(torch.from_numpy(model_pos.astype(np.float32)))
         shift = Affine(torch.clamp(shift_out[:,-1],min=-45,max=45),translation=torch.clamp(shift_out[:,:2]*ds,min=-20*ds,max=20*ds))
         model_vid_sm_shift = shift(torch.from_numpy(data['model_vid_sm'][:,np.newaxis].astype(np.float32))).detach().cpu().numpy().squeeze()
-    model_file = params['save_dir'] / 'ModelData_{}_dt{:03d}_rawWorldCam_{:d}ds.h5'.format(params['data_name'],int(params['model_dt']*1000),int(params['downsamp_vid']))
+    model_file = params['save_dir'] / 'ModelData_{}_dt{:03d}_rawWorldCam_{:d}ds.h5'.format(params['data_name_hf'],int(params['model_dt']*1000),int(params['downsamp_vid']))
     model_data = ioh5.load(model_file)
     model_data['model_vid_sm_shift'] = model_vid_sm_shift
     ioh5.save(model_file,model_data)

@@ -27,7 +27,7 @@ def arg_parser(jupyter=False):
     parser.add_argument('--Nepochs',            type=int,         default=5000)
     parser.add_argument('--num_samples',        type=int,         default=25, help='number of samples for param search')
     parser.add_argument('--cpus_per_task',      type=float,       default=6)
-    parser.add_argument('--gpus_per_task',      type=float,       default=.25)
+    parser.add_argument('--gpus_per_task',      type=float,       default=.5)
     parser.add_argument('--load_ray',           type=str_to_bool, default=True)
     ##### Model Paremeters #####    
     parser.add_argument('--do_norm',            type=str_to_bool, default=True)
@@ -182,6 +182,7 @@ def load_params(args,ModelID,file_dict=None,exp_dir_name=None,nKfold=0,debug=Fal
 
     params['nt_glm_lag']=len(params['lag_list']) # number of timesteps for model fits
     params['data_name'] = '_'.join([params['date_ani2'],params['stim_cond']])
+    params['data_name_hf'] = '_'.join([params['date_ani2'],'hf1_wn'])
     params['data_name_fm'] = '_'.join([params['date_ani2'],params['fm_dir']])
 
     ##### Saves yaml of parameters #####

@@ -16,8 +16,8 @@ import pytorchGLM as pglm
 if __name__ == '__main__': 
     # Input arguments
     args = pglm.arg_parser()
-    if args['load_ray']:
-        ray.init(ignore_reinit_error=True,include_dashboard=True)
+    # if args['load_ray']:
+    ray.init(ignore_reinit_error=True,include_dashboard=True)
     device = torch.device("cuda:{}".format(pglm.get_freer_gpu()) if torch.cuda.is_available() else "cpu")
     print('Device:',device)
     ModRun = [int(i) for i in args['ModRun'].split(',')] #[0,1,2,3,4] #-1,
@@ -47,7 +47,7 @@ if __name__ == '__main__':
             ##### Grab Best Vis Network Name #####
             exp_filename = list((params['save_model_Vis'] / ('NetworkAnalysis/')).glob('*experiment_data.h5'))[-1]
             _,metadata= pglm.h5load(exp_filename)
-            params['best_vis_network'] = params['save_model_Vis']/metadata['best_network'].name
+            params['best_vis_network'] = metadata['best_network']
         elif ModelRun == 3: # mul. fit
             args['train_shifter']  = False
             # args['NoL1']         = False
@@ -56,11 +56,11 @@ if __name__ == '__main__':
             ##### Grab Best Vis Network Name #####
             exp_filename = list((params['save_model_Vis'] / ('NetworkAnalysis/')).glob('*experiment_data.h5'))[-1]
             _,metadata= pglm.h5load(exp_filename)
-            params['best_vis_network'] = params['save_model_Vis']/metadata['best_network'].name
+            params['best_vis_network'] = metadata['best_network']
         elif ModelRun == 4: # head-fixed
             args['train_shifter']  = False
             args['free_move']      = False
-            ModelID                = 4
+            ModelID                = 1
             params, file_dict, exp = pglm.load_params(args,ModelID,exp_dir_name=None,nKfold=0,debug=False)
 
 
@@ -77,7 +77,7 @@ if __name__ == '__main__':
                 resources={"cpu":args['cpus_per_task'], "gpu": args['gpus_per_task']}),
             tune_config=tune.TuneConfig(metric="avg_loss",mode="min",search_alg=algo,num_samples=num_samples),
             param_space=network_config,
-            run_config=air.RunConfig(local_dir=params['save_model'], name="NetworkAnalysis",sync_config=sync_config,verbose=2)
+            run_config=air.RunConfig(local_dir=params['save_model'], name="NetworkAnalysis",sync_config=sync_config)
         )
         results = tuner.fit()
 
@@ -86,13 +86,14 @@ if __name__ == '__main__':
         print("Best trial config: {}".format(best_result.config))
         print("Best trial final validation loss: {}".format(best_result.metrics["avg_loss"]))
         df = results.get_dataframe()
-        best_network = list(params['save_model'].glob('*{}.pt'.format(best_result.metrics['trial_id'])))[0]
+        best_network = list(params['save_model'].rglob('*{}.pt'.format(best_result.metrics['trial_id'])))[0]
         exp_filename = '_'.join([params['model_type'],params['data_name_fm']]) + 'experiment_data.h5'
-        pglm.h5store(params['save_model'] / ('NetworkAnalysis/{}'.format(exp_filename)), df, **{'best_network':best_network,'trial_id':best_result.metrics['trial_id']})
+        exp_best_dict = {'best_network':best_network,'trial_id':best_result.metrics['trial_id'],'best_config':best_result.config}
+        pglm.h5store(params['save_model'] / ('NetworkAnalysis/{}'.format(exp_filename)), df, **exp_best_dict)
 
         ##### Evaluate hyperparameter search #####
-        pglm.evaluate_networks(best_network,best_result.config,params,datasets['xte'],datasets['xte_pos'],datasets['yte'])
+        pglm.evaluate_networks(best_network,best_result.config,params,datasets['xte'],datasets['xte_pos'],datasets['yte'],device=device)
 
         ##### If traning shifter evaluate #####
         if ModelRun == -1:
-            pglm.evaluate_shifter(best_network,params)
+            pglm.evaluate_shifter(best_network,best_result.config,params)

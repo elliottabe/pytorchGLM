@@ -542,8 +542,8 @@ def load_Kfold_data(data,params,train_idx,test_idx):
     data['test_t'] = data['model_t'][test_idx]
     data['train_gz'] = data['model_gz'][train_idx] if params['free_move'] else []
     data['test_gz'] = data['model_gz'][test_idx] if params['free_move'] else []
-    data['train_speed'] = data['model_speed'][train_idx] #if ((params['use_spdpup'])&params['free_move']) else []
-    data['test_speed'] = data['model_speed'][test_idx] #if ((params['use_spdpup'])&params['free_move']) else []
+    data['train_speed'] = data['model_speed'][train_idx] if (params['free_move']) else []
+    data['test_speed'] = data['model_speed'][test_idx] if (params['free_move']) else []
     data['train_eyerad'] = data['model_eyerad'][train_idx] #if ((params['use_spdpup'])&params['free_move']) else []
     data['test_eyerad'] = data['model_eyerad'][test_idx] #if ((params['use_spdpup'])&params['free_move']) else []
     return data

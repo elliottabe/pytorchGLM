@@ -71,6 +71,8 @@ def get_modeltype(params,load_for_training=False):
             model_type = 'Pytorch_Add'
         elif params['ModelID'] == 3:
             model_type = 'Pytorch_Mul'
+        elif params['ModelID'] == 4:
+            model_type = 'Pytorch_HF'
     else:
         model_type = 'Pytorch_Vis'
 
@@ -155,7 +157,9 @@ def format_pytorch_data(data,params,train_idx,test_idx):
         pos_train = np.hstack((data['train_th'][:, np.newaxis], data['train_phi'][:, np.newaxis], data['train_pitch'][:, np.newaxis], np.zeros(data['train_phi'].shape)[:, np.newaxis]))
         pos_test  = np.hstack((data['test_th'][:, np.newaxis], data['test_phi'][:, np.newaxis], data['test_pitch'][:, np.newaxis], np.zeros(data['test_phi'].shape)[:, np.newaxis]))
         model_pos = np.hstack((data['model_th'][:, np.newaxis], data['model_phi'][:, np.newaxis], data['model_pitch'][:, np.newaxis], np.zeros(data['model_phi'].shape)[:, np.newaxis]))
-
+        params['shift_in'] = 0
+        params['shift_out'] = 0
+        
     ##### Save dimensions #####
     params['nks'] = np.shape(data['train_vid'])[1:]
     params['nk'] = params['nks'][0]*params['nks'][1]*params['nt_glm_lag']
