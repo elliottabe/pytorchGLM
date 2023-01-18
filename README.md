@@ -23,7 +23,7 @@ The base part of this code assumes a specific file structure convention to load 
 - Base_Folder
   - Date
     - Animal_Name
-        Experiment_Condition
+      - Experiment_Condition
 
 For example in the Niell Lab convention: 
 - FreelyMovingEphys
