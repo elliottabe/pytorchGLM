@@ -17,3 +17,22 @@ After pytorch is correctly installed run this command to install pip reqruiremen
 
 To install pytorchGLM, in the repo folder use:  
 `pip install -e .`
+
+## Assumed data file structure 
+The base part of this code assumes a specific file structure convention to load data.
+- Base_Folder
+  - Date
+    - Animal_Name
+        Experiment_Condition
+
+For example in the Niell Lab convention: 
+- FreelyMovingEphys
+    - 070921
+        - J553RT
+            - fm1
+            - hf1_wn
+
+This code will then create directories following this convension. 
+
+## Parameters
+To view and edit parameters see pytorchGLM/parameters.py file 
