@@ -1,0 +1,6 @@
+opencv-python
+ray[tune]
+scikit-learn
+test_tube
+hyperopt==0.2.5
+kornia

@@ -1,29 +1,22 @@
-name: pytorchGLM
+name: pytorchGLM_test
 channels:
-  - conda-forge
   - defaults
+  - conda-forge
 dependencies:
   - python==3.8
-  - pip
-  - scipy
-  - numpy
-  - pandas
-  - matplotlib
-  - xarray
-  - ipykernel
-  - tqdm
-  - h5py
-  - pytables
-  - seaborn
-  - ipywidgets
-  - jupyter
-  - jupyterlab
+  - defaults::scipy
+  - defaults::numpy
+  - defaults::pandas
+  - defaults::matplotlib
+  - defaults::xarray
+  - defaults::ipykernel
+  - defaults::tqdm
+  - defaults::h5py
+  - defaults::pytables
+  - defaults::seaborn
+  - defaults::ipywidgets
+  - defaults::jupyter
+  - defaults::jupyterlab
   - conda-forge::netCDF4
-  - pip:
-    - opencv-python
-    - ray[tune]
-    - scikit-learn
-    - test_tube
-    - hyperopt==0.2.5
-    - kornia
+  - pip
 prefix: /home/eabe/anaconda3/envs/pytorchGLM
