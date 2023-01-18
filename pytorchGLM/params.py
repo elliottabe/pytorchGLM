@@ -259,8 +259,8 @@ def make_network_config(params,single_trial=None,custom=False):
         initial_params={}
     else:
         if single_trial is not None:
-            network_config['L2_lambda']   = np.logspace(-2, 3, 20)[1]
-            network_config['L2_lambda_m'] = np.logspace(-2, 3, 20)[1]
+            network_config['L2_lambda']   = 10 #np.logspace(-2, 3, 20)[-5]
+            network_config['L2_lambda_m'] = 0 #np.logspace(-2, 3, 20)[-5]
             initial_params={}
         else:
             network_config['L2_lambda']   = tune.loguniform(1e-2, 1e3)

@@ -17,9 +17,9 @@ def load_datasets(file_dict,params,single_trial=None,device='cuda'):
         single_trial (bool, optional): single_trial=True, used for debuging. Defaults to False.
 
     Returns:
-        train_dataset (Dataset): train dataset for pytorch. Grouped shuffled data
-        test_dataset  (Dataset): test dataset for pytorch. Grouped shuffled data
+        datasets (dictionary): Dictionary of train/test datasets 
         network_config (dict): Dictionary containing parameters for network
+        initial_params (list): List of dictionary for initial parameters in hyperparams search 
     """
     data = load_aligned_data(file_dict, params, reprocess=False)
     data,train_idx_list,test_idx_list = format_data(data, params,do_norm=True,thresh_cells=True,cut_inactive=True)
@@ -118,7 +118,7 @@ def get_modeltype(params,load_for_training=False):
 
 
 def format_pytorch_data(data,params,train_idx,test_idx):
-    """_summary_
+    """Formats data into pytorch Tensors
 
     Args:
         data (dict): dictionary containing processed data from format_data
