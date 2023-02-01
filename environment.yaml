@@ -1,4 +1,4 @@
-name: pytorchGLM_test
+name: pytorchGLM
 channels:
   - defaults
   - conda-forge
