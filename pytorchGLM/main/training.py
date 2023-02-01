@@ -23,7 +23,7 @@ from pytorchGLM.params import *
 from pytorchGLM.Utils.format_model_data import *
 from pytorchGLM.main.models import *
 
-def train_network(network_config, xtr, xte, xtr_pos, xte_pos, ytr, yte, params={},filename=None, meanbias=None):
+def train_network(network_config, xtr, xte, xtr_pos, xte_pos, ytr, yte, params={}, filename=None, meanbias=None):
     """ Function to train network. For Ray Tune, need to have named inputs. 
 
     Args:
@@ -98,6 +98,86 @@ def train_network(network_config, xtr, xte, xtr_pos, xte_pos, ytr, yte, params={
     print("Finished Training")
     # return dict(avg_loss=float(torch.mean(vloss_trace[-1],dim=-1).numpy()))
 
+def train_dataset_network(network_config, train_dataset, test_dataset, params={}, filename=None, meanbias=None):
+    """ Function to train network. For Ray Tune, need to have named inputs. 
+
+    Args:
+        network_config (dict): Dictionary containing parameters for network
+        params (dict): Key parameter dictionary.
+        train_dataset (Dataset): train dataset for pytorch. Grouped shuffled data
+        test_dataset  (Dataset): test dataset for pytorch. Grouped shuffled data
+        filename (str): path to load network not training shifter
+        meanbias (Tensor): mean bias for linear network
+    """
+    if params['train_shifter']:
+        model = model_wrapper((network_config,ShifterNetwork))
+    elif (params['ModelID']==2) | (params['ModelID']==3):
+        model = model_wrapper((network_config,MixedNetwork))
+        model = load_model(model,params,filename=params['best_vis_network'],meanbias=meanbias)
+    else:
+        model = model_wrapper((network_config,BaseModel))
+        if filename is not None:
+            model = load_model(model,params,filename,meanbias=meanbias)
+
+    device = "cpu"
+    if torch.cuda.is_available():
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        # if torch.cuda.device_count() > 1:
+        #     model = nn.DataParallel(model)
+            
+    model.to(device)
+
+    optimizer, scheduler = setup_model_training(model,params,network_config)
+    train_dataloader = DataLoader(train_dataset, batch_size=network_config['batch_size'], shuffle=network_config['shuffle'], num_workers=2, pin_memory=True, drop_last=True)
+    test_dataloader  = DataLoader(test_dataset,  batch_size=network_config['batch_size'], shuffle=network_config['shuffle'], num_workers=2, pin_memory=True, drop_last=True)
+
+    tloss_trace = torch.zeros((params['Nepochs'], network_config['Ncells']), dtype=torch.float)
+    vloss_trace = torch.zeros((params['Nepochs'], network_config['Ncells']), dtype=torch.float)
+    if network_config['single_trial'] is not None:
+        pbar = tqdm((range(params['Nepochs'])))
+    else: 
+        pbar = (range(params['Nepochs']))  
+    for epoch in pbar:  # loop over the dataset multiple times
+        for mini_batch in train_dataloader:
+            xtr, xtr_pos, ytr = mini_batch
+            xtr, xtr_pos, ytr = xtr.to(device), xtr_pos.to(device), ytr.to(device)
+            # zero the parameter gradients
+            optimizer.zero_grad()
+
+            # forward + backward + optimize
+            outputs = model(xtr,xtr_pos)
+            loss = model.loss(outputs, ytr)
+            loss.backward(torch.ones_like(loss))
+            optimizer.step()
+
+            # save loss
+            tloss_trace[epoch] = loss.detach().cpu()
+                
+            if scheduler is not None:
+                scheduler.step()
+
+        # Validation loss
+        with torch.no_grad():
+            for mini_batch in test_dataloader:
+                xte, xte_pos, yte = mini_batch
+                xte, xte_pos, yte = xte.to(device), xte_pos.to(device), yte.to(device)
+                outputs = model(xte,xte_pos)
+                loss = model.loss(outputs, yte)
+                vloss_trace[epoch] = loss.detach().cpu()
+
+    if network_config['single_trial'] is not None:
+        model_name = '{}_ModelID{:d}_dt{:03d}_T{:02d}_NB{}_{}.pt'.format(params['model_type'], params['ModelID'],int(params['model_dt']*1000), params['nt_glm_lag'], params['Nepochs'],network_config['single_trial'])
+        torch.save((model.state_dict(), optimizer.state_dict()), params['save_model']/ model_name)
+        return tloss_trace,vloss_trace,model,optimizer
+    else:
+        # Here we save a checkpoint. It is automatically registered with Ray Tune and can be accessed through `session.get_checkpoint()`
+        model_name = 'GLM_{}_ModelID{:d}_dt{:03d}_T{:02d}_NB{}_{}.pt'.format(params['model_type'], params['ModelID'],int(params['model_dt']*1000), params['nt_glm_lag'], params['Nepochs'],session.get_trial_name())
+        torch.save((model.state_dict(), optimizer.state_dict()), session.get_trial_dir()+model_name)
+        checkpoint = Checkpoint.from_dict({'step':epoch})
+        session.report({'avg_loss':float(torch.mean(vloss_trace[-1],dim=-1).numpy())}, checkpoint=checkpoint)
+
+    print("Finished Training")
+    # return dict(avg_loss=float(torch.mean(vloss_trace[-1],dim=-1).numpy()))
 def evaluate_networks(best_network,network_config,params,xte,xte_pos,yte,device='cpu'):
     """Evaluates ray tune experiment and hyperparameter search
 
