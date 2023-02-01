@@ -32,6 +32,7 @@ class BaseModel(nn.Module):
         self.config = config
         self.in_features = in_features
         self.N_cells = N_cells
+        self.activation_type = config['activation_type']
         
         self.Cell_NN = nn.Sequential(nn.Linear(self.in_features, self.N_cells,bias=True))
         self.activations = nn.ModuleDict({'SoftPlus':nn.Softplus(),
@@ -53,7 +54,10 @@ class BaseModel(nn.Module):
         
     def forward(self, inputs, pos_inputs=None):
         output = self.Cell_NN(inputs)
-        ret = self.activations['ReLU'](output)
+        if self.activation_type is not None:
+            ret = self.activations[self.activation_type](output)
+        else:
+            ret = self.activations(output)
         return ret
 
     def loss(self,Yhat, Y): 
@@ -116,7 +120,10 @@ class ShifterNetwork(BaseModel):
             print(f'Wrong Input Features. Please use tensor with {self.in_features} Input Features')
             return 0
         output = self.Cell_NN(inputs)
-        ret = self.activations['ReLU'](output)
+        if self.activation_type is not None:
+            ret = self.activations[self.activation_type](output)
+        else:
+            ret = self.activations(output)
         return ret
 
 
@@ -163,7 +170,10 @@ class MixedNetwork(BaseModel):
         else:
             move_out = torch.abs(self.posNN(pos_inputs))
             output = output*move_out
-        ret = self.activations['ReLU'](output)
+        if self.activation_type is not None:
+            ret = self.activations[self.activation_type](output)
+        else:
+            ret = self.activations(output)  
         return ret
 
     def loss(self,Yhat, Y): 

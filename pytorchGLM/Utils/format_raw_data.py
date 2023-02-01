@@ -469,7 +469,7 @@ def format_data(data, params, frac=.1, shifter_train_size=.5, test_train_size=.7
                 f25,l75=int((data['model_nsp'].shape[0])*.5),int((data['model_nsp'].shape[0])*.5) # Checking first 25% and last 25% firing rate for drift
                 scaled_fr = (np.nanmean(data['model_nsp'][:f25], axis=0)/np.nanstd(data['model_nsp'][:f25], axis=0) - np.nanmean(data['model_nsp'][l75:], axis=0)/np.nanstd(data['model_nsp'][l75:], axis=0))/params['model_dt']
                 bad_cells = np.where((mean_thresh | (np.abs(scaled_fr)>4)))[0] # Locating bad units      
-                np.save(params['save_dir_fm']/'bad_cells_{}.npy'.format(params['data_name_fm'],bad_cells))
+                np.save(params['save_dir_fm']/'bad_cells_{}.npy'.format(params['data_name_fm']),bad_cells)
         else:
             bad_cells = np.load(params['save_dir_fm']/'bad_cells_{}.npy'.format(params['data_name_fm']))
 
@@ -510,6 +510,12 @@ def format_data(data, params, frac=.1, shifter_train_size=.5, test_train_size=.7
                 data['model_eyerad'] = (data['model_eyerad'])
         else:
             data['model_pitch']  = (np.zeros(data['model_phi'].shape) - FM_move_avg[0,3])
+
+    ##### Ensure no NaNs in data #####
+    for key in data.keys():
+        if (np.any(np.isnan(data[key]))) & ('vid' not in key):
+            data[key][np.isnan(data[key])]=0
+
     return data,train_idx_list,test_idx_list
 
 

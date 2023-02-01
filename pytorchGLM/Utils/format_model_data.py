@@ -166,15 +166,21 @@ def format_pytorch_data(data,params,train_idx,test_idx):
     if params['train_shifter']:
         ##### Only take timepoints within quartile range for training shifter #####
         rolled_vid = np.hstack([np.roll(data['model_vid_sm'], nframes, axis=0) for nframes in params['lag_list']])
-        move_quantiles = np.quantile(model_pos,params['quantiles'],axis=0)
-        train_range = np.all(((pos_train>move_quantiles[0]) & (pos_train<move_quantiles[1])),axis=1)
-        test_range = np.all(((pos_test>move_quantiles[0]) & (pos_test<move_quantiles[1])),axis=1)
-        x_train = rolled_vid[train_idx].reshape((len(train_idx), params['nt_glm_lag'])+params['nks']).astype(np.float32)[train_range]
-        x_test = rolled_vid[test_idx].reshape((len(test_idx), params['nt_glm_lag'])+params['nks']).astype(np.float32)[test_range]
-        pos_train = pos_train[train_range]
-        pos_test = pos_test[test_range]
-        ytr = torch.from_numpy(data['train_nsp'][train_range].astype(np.float32))
-        yte = torch.from_numpy(data['test_nsp'][test_range].astype(np.float32))
+        if params['thresh_shifter']:
+            move_quantiles = np.quantile(model_pos,params['quantiles'],axis=0)
+            train_range = np.all(((pos_train>move_quantiles[0]) & (pos_train<move_quantiles[1])),axis=1)
+            test_range = np.all(((pos_test>move_quantiles[0]) & (pos_test<move_quantiles[1])),axis=1)
+            x_train = rolled_vid[train_idx].reshape((len(train_idx), params['nt_glm_lag'])+params['nks']).astype(np.float32)[train_range]
+            x_test = rolled_vid[test_idx].reshape((len(test_idx), params['nt_glm_lag'])+params['nks']).astype(np.float32)[test_range]
+            pos_train = pos_train[train_range]
+            pos_test = pos_test[test_range]
+            ytr = torch.from_numpy(data['train_nsp'][train_range].astype(np.float32))
+            yte = torch.from_numpy(data['test_nsp'][test_range].astype(np.float32))
+        else:
+            x_train = rolled_vid[train_idx].reshape((len(train_idx), params['nt_glm_lag'])+params['nks']).astype(np.float32)
+            x_test = rolled_vid[test_idx].reshape((len(test_idx), params['nt_glm_lag'])+params['nks']).astype(np.float32)
+            ytr = torch.from_numpy(data['train_nsp'].astype(np.float32))
+            yte = torch.from_numpy(data['test_nsp'].astype(np.float32))
     elif params['NoShifter']:
         ##### Use raw video #####
         if params['crop_input'] != 0:

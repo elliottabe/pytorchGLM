@@ -156,6 +156,7 @@ def load_params(args,ModelID,file_dict=None,exp_dir_name=None,nKfold=0,debug=Fal
         'do_shuffle':               args['do_shuffle'], # do_shuffle=True, shuffles spikes
         'do_norm':                  args['do_norm'], # z-scores inputs
         'train_shifter':            args['train_shifter'], # flag for training shifter network
+        'thresh_shifter':           True,
         'ModelID':                  ModelID, # ModelID 1=Vis, 2=Add, 3=Mult., 4=HeadFixed
         'load_Vis' :                True if ModelID>1 else False,
         'LinMix':                   True if ModelID==2 else False,
@@ -235,6 +236,7 @@ def make_network_config(params,single_trial=None,custom=False):
     network_config['Ncells']        = params['Ncells']
     network_config['initW']         = params['initW']
     network_config['optimizer']         = params['optimizer']
+    network_config['activation_type']   ='ReLU' # Default is ReLU, choose ReLu, SoftPlus, or None
     if custom == False:
         network_config['shift_in']      = params['shift_in']
         network_config['shift_hidden']  = params['shift_hidden']
@@ -259,7 +261,7 @@ def make_network_config(params,single_trial=None,custom=False):
         initial_params={}
     else:
         if single_trial is not None:
-            network_config['L2_lambda']   = 10 #np.logspace(-2, 3, 20)[-5]
+            network_config['L2_lambda']   = 13 #np.logspace(-2, 3, 20)[-5]
             network_config['L2_lambda_m'] = 0 #np.logspace(-2, 3, 20)[-5]
             initial_params={}
         else:
