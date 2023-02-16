@@ -232,7 +232,7 @@ def evaluate_shifter(args,network_config,params):
 
     ##### Loading Best Shifter Network #####
     Nepochs_saved = params['Nepochs']
-    params, file_dict, _ = load_params(args,1,exp_dir_name=None,nKfold=0,debug=False)
+    params, file_dict, _ = load_params(args,1,exp_dir_name=None,nKfold=0,debug=False,file_dict={})
     params = get_modeltype(params)
     exp_filename = list((params['save_model_shift'] / ('NetworkAnalysis/')).rglob('*experiment_data.h5'))[-1]
     df,metadata= h5load(exp_filename)
@@ -303,10 +303,10 @@ def evaluate_shifter(args,network_config,params):
     args['free_move'] = False
     args['train_shifter']=True
     args['Nepochs'] = 5000
-    params, file_dict, exp = load_params(args,1,exp_dir_name=None,nKfold=0,debug=False)
+    params, file_dict, exp = load_params(args,1,exp_dir_name=None,nKfold=0,debug=False,file_dict={})
     params['lag_list'] = [0]
     params['nt_glm_lag']=len(params['lag_list'])
-    data = load_aligned_data(file_dict, params, reprocess=False)
+    data = load_aligned_data({}, params, reprocess=False)
     data,train_idx_list,test_idx_list = format_data(data, params,do_norm=True,thresh_cells=True,cut_inactive=True)
     model_pos = np.hstack((data['model_th'][:, np.newaxis], data['model_phi'][:, np.newaxis],data['model_pitch'][:, np.newaxis]))
     ds=4/params['downsamp_vid']

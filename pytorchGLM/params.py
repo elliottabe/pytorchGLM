@@ -204,7 +204,7 @@ def load_params(args,ModelID,file_dict=None,exp_dir_name=None,nKfold=0,debug=Fal
                     'ephys_bin': list(params['data_dir'].glob('*Ephys.bin'))[0].as_posix(),
                     'eye': list(params['data_dir'].glob('*REYE.nc'))[0].as_posix(),
                     'imu': list(params['data_dir'].glob('*imu.nc'))[0].as_posix() if params['stim_cond'] == params['fm_dir'] else None,
-                    'mapping_json': Path('~/Research/Github/FreelyMovingEphys/config/channel_maps.json').expanduser(),
+                    # 'mapping_json': Path('~/Research/Github/FreelyMovingEphys/config/channel_maps.json').expanduser(),
                     'mp4': True,
                     'name': params['date_ani2'] + '_control_Rig2_' + params['stim_cond'],  # 070921_J553RT
                     'probe_name': 'DB_P128-6',
