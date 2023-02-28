@@ -197,3 +197,58 @@ class MixedNetwork(BaseModel):
             l1_regm = 0
         loss_vec = loss_vec + l1_reg0  + l1_regm
         return loss_vec
+
+
+
+class SingleShifterNetwork(BaseModel):
+    def __init__(self, 
+                    in_features, 
+                    N_cells, 
+                    config,
+                    device='cuda'):
+        super(SingleShifterNetwork, self).__init__(in_features, N_cells, config)
+        r''' Shifter GLM Network
+        Args: 
+            in_feature: size of the input dimension
+            N_cells: the number of cells to fit
+            shift_in: size of the input to shifter network. 
+            shift_hidden: size of the hidden layer in the shifter network
+            shift_out: output dimension of shifter network
+            L1_alpha: L1 regularization value for visual network
+            train_shifter: Bool for whether training shifter network
+            meanbias: can set bias to mean firing rate of each neurons
+        '''
+        self.config = config
+        self.device = device
+        ##### shifter network initialization #####
+        self.shift_in = config['shift_in']
+        self.shift_hidden = config['shift_hidden']
+        self.shift_out = config['shift_out']
+        self.shifter_nn = nn.Sequential(
+                                        nn.Linear(1,config['shift_hidden']),
+                                        nn.Softplus(),
+                                        nn.Linear(config['shift_hidden'], 1)
+                                    )
+
+
+    def forward(self, inputs, shifter_input=None):
+        ##### Forward Pass of Shifter #####
+        batchsize, timesize, x, y = inputs.shape
+        dxy = self.shifter_nn(shifter_input)
+        dxs = torch.zeros_like(dxy)
+        dxs[:,0] = dxy[:,0]
+        dxs = dxs.to(self.device)
+        shift = Affine(angle=torch.clamp(dxs[:,-1],min=-45,max=45),translation=dxs[:,:2])
+        inputs = shift(inputs)
+        inputs = inputs.reshape(batchsize,-1).contiguous()
+        ##### fowrad pass of GLM #####
+        x, y = inputs.shape
+        if y != self.in_features:
+            print(f'Wrong Input Features. Please use tensor with {self.in_features} Input Features')
+            return 0
+        output = self.Cell_NN(inputs)
+        if self.activation_type is not None:
+            ret = self.activations[self.activation_type](output)
+        else:
+            ret = self.activations(output)
+        return ret
